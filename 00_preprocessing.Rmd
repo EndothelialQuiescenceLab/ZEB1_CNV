@@ -1,7 +1,8 @@
 ---
-title: "00_preprocessing"
-output: html_document
+title: "CNV paper scRNA-seq preprocessing"
+author: "Joseph L. Horder"
 date: "2025-10-17"
+output: html_document
 ---
 
 ```{r setup, include=FALSE}

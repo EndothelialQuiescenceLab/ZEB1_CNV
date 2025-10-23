@@ -1,7 +1,7 @@
 ---
-title: "CNV_thesis"
+title: "CNV_paper_scRNA-seq analyses"
 author: "Joseph L. Horder"
-date: "2025-03-18"
+date: "2025-10-17"
 output: html_document
 ---
 
@@ -62,23 +62,23 @@ CNV_data[['tsne_pub']] <- CreateDimReducObject(embeddings = tsne_coordinates_mat
 Idents(CNV_data) <- "Condition"
 
 DimPlot_scCustom(CNV_data, reduction = "tsne_pub", group.by = "Cluster")
-ggsave("../output/00_umap_clusters.svg", width = 7, height = 5)
+ggsave("../output/plots/00_tsne_clusters.svg", width = 7, height = 5)
 
 # T-SNE plot showing the CNV/healthy groups
 DimPlot_scCustom(CNV_data, reduction = "tsne_pub", label = FALSE)
-ggsave("../output/01_umap_condition.svg", width = 7, height = 5)
+ggsave("../output/plots/01_tsne_condition.svg", width = 7, height = 5)
 ```
 
 ```{r}
 # Feature plot of ZEB1
 FeaturePlot_scCustom(CNV_data, features = "Zeb1")
-ggsave("../output/02_zeb1_featureplot.svg", width = 7, height = 5)
+ggsave("../output/plots/02_zeb1_featureplot.svg", width = 7, height = 5)
 ```
 
 ```{r}
 # Density plot
 Plot_Density_Custom(CNV_data, features = "Zeb1")
-ggsave("../output/03_zeb1_density.svg", width = 7, height = 5)
+ggsave("../output/plots/03_zeb1_density.svg", width = 7, height = 5)
 ```
 
 ```{r}
@@ -143,7 +143,7 @@ p2 <- DotPlot_scCustom(CNV_data, features = c("Zeb1",
 p1
 p2
 
-ggsave("../output/04_endomt_dot.svg", width = 6, height = 5)
+ggsave("../output/plots/04_endomt_dot.svg", width = 6, height = 5)
 ```
 
 ```{r}
@@ -153,7 +153,7 @@ CNV_data_markers_table <- CNV_data_markers %>%
   group_by(cluster) %>%
   dplyr::filter(p_val_adj < 0.05)
 
-write.csv(CNV_data_markers_table, file = "../output/00_DEGs_supp.csv")
+write.csv(CNV_data_markers_table, file = "../output/data/00_DEGs_supp.csv")
 ```
 
 ```{r}
@@ -173,7 +173,7 @@ CNV_data_markers_table_endomt <- CNV_data_markers_endomt %>%
   group_by(cluster) %>%
   dplyr::filter(p_val_adj < 0.05)
 
-write.csv(CNV_data_markers_table_endomt, file = "../output/01_endomt_DEGs_supp.csv")
+write.csv(CNV_data_markers_table_endomt, file = "../output/data/01_endomt_DEGs_supp.csv")
 ```
 
 ```{r}
@@ -233,7 +233,7 @@ ggplot(CNV_data_markers_table_endomt, aes(x = gene, y = cluster, fill = avg_log2
   theme(axis.text = element_text(size = 12),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
-ggsave("../output/05_EndoMT_log2FC.svg", width = 6, height = 5, units = "in", dpi = 320)
+ggsave("../output/plots/05_EndoMT_log2FC.svg", width = 6, height = 5, units = "in", dpi = 320)
 ```
 
 ```{r}
@@ -278,7 +278,7 @@ p4 <- DotPlot_scCustom(CNV_data, features = c("Zeb1",
 p3
 p4
 
-ggsave("../output/06_canonical_dot.svg", width = 6.5, height = 5)
+ggsave("../output/plots/06_canonical_dot.svg", width = 6.5, height = 5)
 ```
 
 ```{r}
@@ -300,7 +300,7 @@ CNV_data_markers_table_canonical <- CNV_data_markers_canonical %>%
   group_by(cluster) %>%
   dplyr::filter(p_val_adj < 0.05)
 
-write.csv(CNV_data_markers_table_canonical, file = "../output/02_canonical_DEGs_supp.csv")
+write.csv(CNV_data_markers_table_canonical, file = "../output/data/02_canonical_DEGs_supp.csv")
 ```
 
 ```{r}
@@ -362,7 +362,141 @@ ggplot(CNV_data_markers_table_canonical, aes(x = gene, y = cluster, fill = avg_l
   theme(axis.text = element_text(size = 12),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
-ggsave("../output/07_canonical_log2FC.svg", width = 7, height = 5, units = "in", dpi = 320)
+ggsave("../output/plots/07_canonical_log2FC.svg", width = 7, height = 5, units = "in", dpi = 320)
+```
+
+```{r}
+# Expression dotplot of endomt and canonical genes combined.
+DotPlot_scCustom(CNV_data, features = c("Zeb1",
+                                        "Zeb2",
+                                        "Snai1",
+                                        "Snai2",
+                                        "Twist1",
+                                        "Twist2",
+                                        "Pecam1",
+                                        "Cdh5",
+                                        "Tagln",
+                                        "Fn1",
+                                        "Serpine1",
+                                        "Tie1",
+                                        "Tek",
+                                        "Angpt2",
+                                        "Kdr",
+                                        "Nrp1",
+                                        "Nrp2",
+                                        "Dll4",
+                                        "Jag1",
+                                        "Esm1",
+                                        "Cxcr4",
+                                        "Foxo1",
+                                        "Myc"),
+                 x_lab_rotate = TRUE, scale.by = "radius", scale.max = 100)
+
+ggsave("../output/plots/08_endomt_canonical_dot.svg", width = 8.5, height = 5)
+```
+
+```{r}
+# Generate DE results for the EndoMT AND canonical genes.
+# In order to plot a single dotplot of results rather than 2 separate.
+CNV_data_endomt_canonical <- FindAllMarkers(CNV_data, features = c("Zeb1",
+                                        "Zeb2",
+                                        "Snai1",
+                                        "Snai2",
+                                        "Twist1",
+                                        "Twist2",
+                                        "Pecam1",
+                                        "Cdh5",
+                                        "Tagln",
+                                        "Fn1",
+                                        "Serpine1",
+                                        "Tie1",
+                                        "Tek",
+                                        "Angpt2",
+                                        "Kdr",
+                                        "Nrp1",
+                                        "Nrp2",
+                                        "Dll4",
+                                        "Jag1",
+                                        "Esm1",
+                                        "Cxcr4",
+                                        "Foxo1",
+                                        "Myc"))
+
+CNV_data_endomt_canonical_table <- CNV_data_endomt_canonical %>%
+  group_by(cluster) %>%
+  dplyr::filter(p_val_adj < 0.05)
+
+write.csv(CNV_data_endomt_canonical_table, file = "../output/data/03_EndoMT_canonical_DEGs_supp.csv")
+```
+
+```{r}
+# Dotplot of endomt and canonical combined.
+
+# Set the order of the clusters
+CNV_data_endomt_canonical_table$cluster <- factor(CNV_data_endomt_canonical_table$cluster, levels =  c("tip cell",
+                                                        "proliferating",
+                                                        "neophalanx",
+                                                        "immature",
+                                                        "CNV transitioning",
+                                                        "venule",
+                                                        "vein shear stress",
+                                                        "postcapillary veins",
+                                                        "PCV activated",
+                                                        "large veins",
+                                                        "large arteries",
+                                                        "capillary outer c.c.",
+                                                        "capillary inner c.c.",
+                                                        "artery shear stress",
+                                                        "artery activated",
+                                                        "arterioles",
+                                                        "lymphatics",
+                                                        "lymphatic-like"))
+
+CNV_data_endomt_canonical_table$gene <- factor(CNV_data_endomt_canonical_table$gene, levels =  c("Zeb1",
+                                        "Zeb2",
+                                        "Snai1",
+                                        "Snai2",
+                                        "Twist1",
+                                        "Twist2",
+                                        "Pecam1",
+                                        "Cdh5",
+                                        "Tagln",
+                                        "Fn1",
+                                        "Serpine1",
+                                        "Tie1",
+                                        "Tek",
+                                        "Angpt2",
+                                        "Kdr",
+                                        "Nrp1",
+                                        "Nrp2",
+                                        "Dll4",
+                                        "Jag1",
+                                        "Esm1",
+                                        "Cxcr4",
+                                        "Foxo1",
+                                        "Myc"))
+
+# Change adjusted p_value of 0 to 1e-300 to be logged.
+CNV_data_endomt_canonical_table$p_val_adj <- ifelse(CNV_data_endomt_canonical_table$p_val_adj == 0, 1e-300, CNV_data_endomt_canonical_table$p_val_adj)
+
+# Plot the DE analysis data for EndoMT genes.
+ggplot(CNV_data_endomt_canonical_table, aes(x = gene, y = cluster, fill = avg_log2FC, size = -log10(p_val_adj))) +
+  geom_point(shape = 21, stroke = 0.4, 
+             aes(color = ifelse(avg_log2FC > 0, "red", "blue"))) +
+  scale_fill_gradient2(
+    low = "blue", mid = "white", high = "red",
+    name = "log2(Fold change)", midpoint = 0,
+    limits = c(min(CNV_data_markers_table_canonical$avg_log2FC), max(CNV_data_markers_table_canonical$avg_log2FC)),
+    oob = scales::squish
+  ) +
+  scale_color_identity() +  # Use the specified colors directly for edges
+  scale_size(name = "-log10(p-value)") +
+  ggtitle("") +
+  theme_classic() +
+  theme(axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggsave("../output/plots/09_endomt_canonical_log2FC.svg", width = 9, height = 5, units = "in", dpi = 320)
 ```
 
 ```{r}
@@ -374,7 +508,7 @@ CNV_data_markers_table_lesionvsnonlesion <- CNV_data_markers_lesionvsnonlesion %
   group_by(cluster) %>%
   dplyr::filter(p_val_adj < 0.05)
 
-write.csv(CNV_data_markers_table_lesionvsnonlesion, file = "../output/04_DEGs_lesionvsnonlesion_supp.csv")
+write.csv(CNV_data_markers_table_lesionvsnonlesion, file = "../output/data/04_DEGs_lesionvsnonlesion_supp.csv")
 
 Idents(CNV_data) <- "Cluster"
 ```
@@ -410,7 +544,7 @@ CNV_data_markers_table_lesionvsnonlesion_table_endomt <- CNV_data_markers_lesion
   group_by(cluster) %>%
   dplyr::filter(p_val_adj < 0.05)
 
-write.csv(CNV_data_markers_table_lesionvsnonlesion_table_endomt, file = "../output/05_EndoMT_DEGs_lesionvsnonlesion_supp.csv")
+write.csv(CNV_data_markers_table_lesionvsnonlesion_table_endomt, file = "../output/data/05_EndoMT_canonical_DEGs_lesionvsnonlesion_supp.csv")
 
 Idents(CNV_data) <- "Cluster"
 ```
@@ -458,7 +592,7 @@ base_plot
 
 # Save the plot
 ggsave(
-  filename = "../output/08_endomt_lesionvsnonlesion_volcano.svg",
+  filename = "../output/plots/10_endomt_lesionvsnonlesion_volcano.svg",
   plot = base_plot,
   width = 7,
   height = 4,
@@ -468,12 +602,19 @@ ggsave(
 ```
 
 ```{r}
+# Extract percent expressing information for Zeb1 across phenotypes.
+```
+
+```{r}
 # Create a subset of lesion cells
 lesion_cells <- subset(CNV_data, idents = c("proliferating",
                                                         "tip cell",
                                                         "CNV transitioning",
                                                         "immature",
                                                         "neophalanx"))
+
+# Save the lesion EC subset
+saveRDS(lesion_cells,"../output/Robjects/01_lesion_cells_subset.rds")
 ```
 
 ```{r}
@@ -495,5 +636,132 @@ print("Running in silico KO")
 lesion_ZEB1_KO <- scTenifoldKnk(WT, qc = TRUE, qc_minLSize = 0, gKO = 'Zeb1', nCores = 10)
 
 print("Save in silico KO")
-save(lesion_ZEB1_KO, file = '../output/Robjects/01_cnv_lesion_zeb1KO.RData')
+save(lesion_ZEB1_KO, file = '../output/Robjects/02_cnv_lesion_zeb1KO.RData')
+```
+
+```{r}
+# Read in the in-silico KO data
+load('/Volumes/ECQui_HD3/scRNA-seq/rohlenova_CNV/output/Robjects/cnv_lesion_zeb1KO.RData')
+```
+
+```{r}
+# Extract the differential regulation results from in-silico Zeb1 KO.
+write.csv(CNVECs_ZEB1_KO$diffRegulation, "../output/data/06_cnv_lesion_zeb1KO_DRGs.csv")
+DR <- CNVECs_ZEB1_KO$diffRegulation
+# DR$symbol <- mapIds(org.Mm.eg.db, keys = DR$gene, column = "SYMBOL", keytype = "ENSEMBL")
+
+# Extract only the significant results.
+DR_sig <- DR %>%
+  filter(p.adj < 0.05)
+```
+
+```{r}
+# Perform functional enrichment analysis of the significant predicted DR genes against GO.
+Zeb1KOego <- enrichGO(
+    gene          = DR_sig$gene,
+    OrgDb         = org.Mm.eg.db,
+    keyType       = "SYMBOL",
+    ont           = "BP",
+    pAdjustMethod = "BH",
+    qvalueCutoff  = 0.05,
+    readable      = TRUE
+)
+
+simpleZeb1KOego <- clusterProfiler::simplify(Zeb1KOego, cutoff = 0.7, by = "p.adjust", select_fun = min)
+
+write.csv(simpleZeb1KOego@result, file = "../output/data/07_zeb1_KO_GO.csv")
+```
+
+```{r}
+# Perform functional enrichment analysis of the significant predicted DR genes against KEGG.
+zeb1_KO_genes_entrez <- bitr(DR_sig$gene, fromType = "SYMBOL", toType = "ENTREZID",
+                             OrgDb = "org.Mm.eg.db")
+
+ekeggZeb1KO <- enrichKEGG(
+    gene = zeb1_KO_genes_entrez$ENTREZID,
+    organism      = 'mmu',
+    keyType       = "kegg",
+    pAdjustMethod = "BH",
+    qvalueCutoff  = 0.05)
+
+ekeggZeb1KO <- setReadable(ekeggZeb1KO, OrgDb = org.Mm.eg.db, keyType = "ENTREZID")
+
+ekeggZeb1KO@result$Description <- gsub(pattern = " - Mus musculus (house mouse)", replacement = "", ekeggZeb1KO@result$Description, fixed = T)
+
+write.csv(ekeggZeb1KO@result, file = "../output/data/08_zeb1_KO_KEGG.csv")
+```
+
+```{r}
+# Create a plot to demonstrate the in-silico KO results.
+# Add log2FC column and adjust for 0 p-values
+DR$log2FC <- log2(DR$FC)
+DR$p.adj <- ifelse(DR$p.adj == 0, 1e-300, DR$p.adj)
+
+# Create a color category column for significant genes
+DR$color <- "darkgrey" # Default color
+DR$color[DR$p.adj < 0.05] <- "#ffada9" # Significant genes
+
+# Add labels only for significant genes in EndoMT_markers and angiogenic genes
+DR$label <- ifelse(DR$gene %in% c("Zeb1",
+                                  "Cdkn1a",
+                                  "Dusp1",
+                                  "Epas1",
+                                  "Fos",
+                                  "Fosb",
+                                  "Gadd45g",
+                                  "Jun",
+                                  "Junb",
+                                  "Jund",
+                                  "Lifr",
+                                  "Mcl1",
+                                  "Nfkbia",
+                                  "Nr4a1",
+                                  "Osmr",
+                                  "Pim1",
+                                  "Prkcg",
+                                  "Socs3",
+                                  "Stat3",
+                                  "Stmn1"), DR$gene, "")
+
+# Define axis caps
+cap_y <- 30
+cap_x <- 8
+DR$plot_y <- pmin(-log10(DR$p.adj), cap_y)
+DR$plot_x <- pmin(abs(DR$log2FC), cap_x) * sign(DR$log2FC)
+
+# Separate data for Zeb1, green points, and other points
+zeb1_point <- DR[DR$gene == "Zeb1", ]
+other_points <- DR[!(DR$gene == "Zeb1"),]
+
+# Plot
+ggplot() +
+  # Plot other points first
+  geom_point(data = other_points, aes(x = plot_x, y = plot_y, color = color), size = 1, alpha = 0.5) +
+  # Plot lightgreen and darkgreen points on top
+  # Highlight Zeb1 as a red triangle
+  geom_point(data = zeb1_point, aes(x = plot_x, y = plot_y), color = "red", shape = 2, size = 2) +
+  # Add gene labels for EndoMT markers
+  geom_text_repel(
+    data = other_points[other_points$label != "", ],
+    aes(x = plot_x, y = plot_y, label = label),
+    size = 3, color = "black", max.overlaps = 50, box.padding = 0.4,
+    min.segment.length = 0,
+    segment.size = 0.2
+  ) +
+  scale_color_identity() +
+  labs(
+    x = "log2(Fold Change)",
+    y = "-log10(Adjusted p-value)",
+    title = ""
+  ) +
+  theme_classic()
+
+# Save the plot
+ggsave(
+  filename = "../output/plots/11_zeb1_KO_genes.png",
+  width = 8,
+  height = 10,
+  units = "cm",
+  dpi = 320
+)
 ```
