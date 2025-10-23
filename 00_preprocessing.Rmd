@@ -1,0 +1,146 @@
+---
+title: "00_preprocessing"
+output: html_document
+date: "2025-10-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load in the required libraries
+
+```{r}
+library(Seurat)
+library(Matrix)
+```
+
+Create a seurat object with the downloaded raw, normalised and batch corrected data.
+The data was downloaded from https://endotheliomics.shinyapps.io/murine_ectax/
+
+```{r}
+# Load the counts and meta data for the raw, normalised and batch corrected data.
+
+counts_raw <- read.csv("../data/raw_counts/Data.csv")
+meta_raw <- read.csv("../data/raw_counts/Metadata.csv")
+
+counts_norm <- read.csv("../data/normalized_data/Data.csv")
+meta_norm <- read.csv("../data/normalized_data/Metadata.csv")
+
+counts_batch <- read.csv("../data/batch_corrected_data/Data.csv")
+meta_batch <- read.csv("../data/batch_corrected_data/Metadata.csv")
+```
+
+```{r}
+# Coerce the counts data into a sparse matrix.
+# This is required for the seurat object.
+
+rownames(counts_raw) <- counts_raw[, 1]
+counts_raw <- counts_raw[, -1]
+counts_raw <- as(as.matrix(counts_raw), "sparseMatrix")
+
+rownames(counts_norm) <- counts_norm[, 1]
+counts_norm <- counts_norm[, -1]
+counts_norm <- as(as.matrix(counts_norm), "sparseMatrix")
+
+rownames(counts_batch) <- counts_batch[, 1]
+counts_batch <- counts_batch[, -1]
+counts_batch <- as(as.matrix(counts_batch), "sparseMatrix")
+```
+
+```{r}
+# Ensure that the raw and normalised counts matrices match in terms of cell and gene order.
+# This will also remove any genes and cells in the raw counts matrix that are not present
+# In the normalised counts matrix.
+
+cell_order <- colnames(counts_norm)
+counts_raw_reordered <- counts_raw[, cell_order]
+
+raw_genes <- rownames(counts_norm)
+counts_raw_reordered_subset <- counts_raw_reordered[raw_genes, ]
+```
+
+```{r}
+# Now run checks to make sure the above has worked.
+
+# First, check the dimensions match.
+
+if (identical(dim(counts_norm), dim(counts_raw_reordered_subset))) {
+  cat("Dimensions match.\n")
+} else {
+  cat("Dimensions do not match.\n")
+}
+
+# Check the rownames (genes) match
+
+if (identical(rownames(counts_norm), rownames(counts_raw_reordered_subset))) {
+  cat("Row names (gene names) match.\n")
+} else {
+  cat("Row names (gene names) do not match.\n")
+}
+
+# Check the colnames (cells) match.
+
+if (identical(colnames(counts_norm), colnames(counts_raw_reordered_subset))) {
+  cat("Column names (cell identifiers) match.\n")
+} else {
+  cat("Column names (cell identifiers) do not match.\n")
+}
+
+# Now do the same with the batch corrected data.
+
+if (identical(dim(counts_batch), dim(counts_raw_reordered_subset))) {
+  cat("Dimensions match.\n")
+} else {
+  cat("Dimensions do not match.\n")
+}
+
+if (identical(rownames(counts_batch), rownames(counts_raw_reordered_subset))) {
+  cat("Row names (gene names) match.\n")
+} else {
+  cat("Row names (gene names) do not match.\n")
+}
+
+if (identical(colnames(counts_batch), colnames(counts_raw_reordered_subset))) {
+  cat("Column names (cell identifiers) match.\n")
+} else {
+  cat("Column names (cell identifiers) do not match.\n")
+}
+```
+
+```{r}
+# Make the rownames of the metadata the cell names. This is required in order
+# to be built into the seurat object.
+rownames(meta_batch) <- meta_batch[, 1]
+meta_batch <- meta_batch[, -1]
+```
+
+```{r}
+# Create the seurat object using the sparse matrix of raw counts and raw metadata.
+# Here we sepcify "RNA" as the assay to store the counts in.
+# This should then save the raw counts data in the "counts" slot of "RNA" assay.
+# For more info see https://github.com/satijalab/seurat/wiki/Assay 
+
+CNV_raw <- CreateSeuratObject(counts=counts_raw_reordered_subset,
+                              assay="RNA",
+                              project="Rohlenova_CNV",
+                              meta.data = meta_batch)
+
+# Add the normalised counts to the "data" slot of the "RNA" assay.
+# First change the name of the object in order to preserve the previous step
+# For troubleshooting.
+
+CNV_norm <- CNV_raw
+
+CNV_norm[["RNA"]]$data <- counts_norm
+
+# Now add the batch corrected data to a new assay called "integrated".
+
+CNV_norm[["integrated"]] <- CreateAssayObject(counts = counts_batch)
+```
+
+```{r}
+# Save the seurat object as an RDS to load in future scripts.
+
+saveRDS(CNV_norm,"../output/Robjects/00_CNV_raw_norm_batch_object.rds")
+```
