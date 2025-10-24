@@ -21,6 +21,7 @@ library(ggrepel)
 library(clusterProfiler)
 library(org.Mm.eg.db)
 library(scTenifoldKnk)
+library(msigdbr)
 ```
 
 ```{r}
@@ -59,13 +60,11 @@ CNV_data[['tsne_pub']] <- CreateDimReducObject(embeddings = tsne_coordinates_mat
 
 ```{r}
 # T-SNE plot showing the clusters
-Idents(CNV_data) <- "Condition"
-
 DimPlot_scCustom(CNV_data, reduction = "tsne_pub", group.by = "Cluster")
 ggsave("../output/plots/00_tsne_clusters.svg", width = 7, height = 5)
 
 # T-SNE plot showing the CNV/healthy groups
-DimPlot_scCustom(CNV_data, reduction = "tsne_pub", label = FALSE)
+DimPlot_scCustom(CNV_data, reduction = "tsne_pub", group.by = "Condition", label = FALSE)
 ggsave("../output/plots/01_tsne_condition.svg", width = 7, height = 5)
 ```
 
@@ -79,6 +78,16 @@ ggsave("../output/plots/02_zeb1_featureplot.svg", width = 7, height = 5)
 # Density plot
 Plot_Density_Custom(CNV_data, features = "Zeb1")
 ggsave("../output/plots/03_zeb1_density.svg", width = 7, height = 5)
+```
+
+```{r}
+# Violin plot of Zeb1 across cell phenotypes.
+VlnPlot_scCustom(CNV_data, features = "Zeb1", group.by = "Cluster") & NoLegend()
+ggsave("../output/plots/15_zeb1_violin_phenotypes.svg", width = 7, height = 5)
+
+# Violin plot of Zeb1 across lesion and non-lesion.
+VlnPlot_scCustom(CNV_data, features = "Zeb1", group.by = "CNVECs.vs.CECs") & NoLegend()
+ggsave("../output/plots/16_zeb1_violin_lesion_nonlesion.svg", width = 7, height = 5)
 ```
 
 ```{r}
@@ -641,7 +650,7 @@ save(lesion_ZEB1_KO, file = '../output/Robjects/02_cnv_lesion_zeb1KO.RData')
 
 ```{r}
 # Read in the in-silico KO data
-load('/Volumes/ECQui_HD3/scRNA-seq/rohlenova_CNV/output/Robjects/cnv_lesion_zeb1KO.RData')
+load('../output/Robjects/02_cnv_lesion_zeb1KO.RData')
 ```
 
 ```{r}
@@ -653,6 +662,72 @@ DR <- CNVECs_ZEB1_KO$diffRegulation
 # Extract only the significant results.
 DR_sig <- DR %>%
   filter(p.adj < 0.05)
+```
+
+```{r}
+# Create a plot to demonstrate the in-silico KO results. Top 10 DR genes
+# Add log2FC column and adjust for 0 p-values
+DR$log2FC <- log2(DR$FC)
+DR$p.adj <- ifelse(DR$p.adj == 0, 1e-300, DR$p.adj)
+
+# Create a color category column for significant genes
+DR$color <- "darkgrey" # Default color
+DR$color[DR$p.adj < 0.05] <- "#ffada9" # Significant genes
+
+# Add labels only for significant genes of interest. Top 10 DR in this case
+DR$label <- ifelse(DR$gene %in% c("Zeb1",
+                                  "Tk1",
+                                  "Gmnn",
+                                  "Mcm5",
+                                  "Fosl2",
+                                  "Jund",
+                                  "Apold1",
+                                  "Rrm1",
+                                  "Junb",
+                                  "Fosb",
+                                  "Zfp36"), DR$gene, "")
+
+# Define axis caps
+cap_y <- 30
+cap_x <- 8
+DR$plot_y <- pmin(-log10(DR$p.adj), cap_y)
+DR$plot_x <- pmin(abs(DR$log2FC), cap_x) * sign(DR$log2FC)
+
+# Separate data for Zeb1, green points, and other points
+zeb1_point <- DR[DR$gene == "Zeb1", ]
+other_points <- DR[!(DR$gene == "Zeb1"),]
+
+# Plot
+ggplot() +
+  # Plot other points first
+  geom_point(data = other_points, aes(x = plot_x, y = plot_y, color = color), size = 1, alpha = 0.5) +
+  # Plot lightgreen and darkgreen points on top
+  # Highlight Zeb1 as a red triangle
+  geom_point(data = zeb1_point, aes(x = plot_x, y = plot_y), color = "red", shape = 2, size = 2) +
+  # Add gene labels for EndoMT markers
+  geom_text_repel(
+    data = other_points[other_points$label != "", ],
+    aes(x = plot_x, y = plot_y, label = label),
+    size = 3, color = "black", max.overlaps = 50, box.padding = 0.4,
+    min.segment.length = 0,
+    segment.size = 0.2
+  ) +
+  scale_color_identity() +
+  labs(
+    x = "log2(Fold Change)",
+    y = "-log10(Adjusted p-value)",
+    title = ""
+  ) +
+  theme_classic()
+
+# Save the plot
+ggsave(
+  filename = "../output/plots/11_zeb1_KO_TOP_genes.svg",
+  width = 8,
+  height = 10,
+  units = "cm",
+  dpi = 320
+)
 ```
 
 ```{r}
@@ -692,7 +767,180 @@ write.csv(ekeggZeb1KO@result, file = "../output/data/08_zeb1_KO_KEGG.csv")
 ```
 
 ```{r}
-# Create a plot to demonstrate the in-silico KO results.
+# Perform functional enrichment analysis of DR genes against HALLMARKS
+# Retrieve the sets of hallmarks data. Refine the data.
+m_t2g <- msigdbr(species = "Mus musculus", collection = "H") %>% 
+  dplyr::select(gs_name, gene_symbol)
+head(m_t2g)
+
+zeb1_ko_genes <- zeb1_KO_genes_entrez$SYMBOL
+
+dr_hallmarks <- enricher(zeb1_ko_genes, TERM2GENE = m_t2g, qvalueCutoff = 0.05)
+dr_hallmarks <- dr_hallmarks@result %>%
+  dplyr::filter(qvalue < 0.05) %>%
+  arrange(qvalue)
+head(dr_hallmarks)
+
+write.csv(dr_hallmarks, file = "../output/data/09_zeb1_KO_HALLMARKS.csv")
+```
+
+```{r}
+# Dotplot of combined functional enrichment results for inflammation-related results
+# First, combine the data together.
+GO <- as.data.frame(simpleZeb1KOego@result)
+KEGG <- as.data.frame(ekeggZeb1KO@result)
+HALL <- as.data.frame(dr_hallmarks)
+
+GO$Type <- "GO"
+KEGG$Type <- "KEGG"
+HALL$Type <- "HALLMARKS"
+
+# Concatenate ID and Description for GO and KEGG
+GO <- GO %>%
+  mutate(Description = paste0(Description, " ", "(", ID, ")"))
+
+KEGG <- KEGG %>%
+  mutate(Description = paste0(Description, " ", "(", ID, ")"))
+KEGG <- KEGG[, !(names(KEGG) %in% c("category", "subcategory"))]
+
+all_res <- bind_rows(GO, KEGG, HALL)
+
+selected_terms <- c("HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+                    "regulation of inflammatory response (GO:0050727)",
+                    "cellular response to interleukin-17 (GO:0097398)",
+                    "response to interleukin-17 (GO:0097396)",
+                    "transforming growth factor beta receptor superfamily signaling pathway (GO:0141091)",
+                    "cellular response to transforming growth factor beta stimulus (GO:0071560)",
+                    "regulation of tumor necrosis factor production (GO:0032680)",
+                    "response to transforming growth factor beta (GO:0071559)",
+                    "inflammatory response to antigenic stimulus (GO:0002437)",
+                    "cellular response to interleukin-1 (GO:0071347)",
+                    "inflammatory response to wounding (GO:0090594)",
+                    "response to interleukin-1 (GO:0070555)",
+                    "JAK-STAT signaling pathway (mmu04630)",
+                    "IL-17 signaling pathway (mmu04657)",
+                    "MAPK signaling pathway (mmu04010)",
+                    "TNF signaling pathway (mmu04668)")
+
+# Filter selected pathways by Description
+plot_data <- all_res %>%
+  filter(Description %in% selected_terms)
+
+# Create readable labels
+plot_data <- plot_data %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# Convert GeneRatio to numeric
+plot_data <- plot_data %>%
+  separate(GeneRatio, into = c("x", "y"), sep = "/") %>%
+  mutate(GeneRatioNumeric = as.numeric(x) / as.numeric(y))
+
+# Ensure key columns are numeric
+plot_data <- plot_data %>%
+  mutate(
+    p.adjust = as.numeric(p.adjust),
+    Count    = as.numeric(Count))
+
+# Order the y axis by significance for each database
+plot_data <- plot_data %>%
+  arrange(p.adjust, Description) %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# Make dotplot
+p <- ggplot(
+  plot_data,
+  aes(x = GeneRatioNumeric, y = Description, size = Count, color = p.adjust)
+) +
+  geom_point() +
+  scale_color_gradient(high = "#327eba", low = "#e06663", name = "p.adjust") +
+  guides(color = guide_colorbar(reverse = TRUE)) +  # red = more significant at top of legend
+  scale_size_continuous(breaks = c(5,10,15,20,25,30), range=c(3,10)) +
+  labs(x = "Gene Ratio", y = NULL, title = "") +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 10)
+  )
+
+print(p)
+ggsave(
+  plot = p,
+  filename = "../output/plots/17_zeb1_KO_funenrich_inflamm.svg",
+  width = 25,
+  height = 10,
+  units = "cm",
+  dpi = 320
+)
+```
+
+
+```{r}
+# Genes related to inflammation were extracted from the inflammation-related
+# results from the functional enrichment analyses.
+# This resulted in 53 genes out of 133 total DR from ZEB1 in-silico KO to be 
+# related to inflammation. See data file "10_inflammation_genes_from_enrichmentanalyses.txt"
+
+inflam_genes <- c("Akap12",
+"Arid5a",
+"Atf3",
+"Bhlhe40",
+"Bmpr2",
+"Btg2",
+"Casp4",
+"Ccnl1",
+"Cd200",
+"Cdkn1a",
+"Dusp1",
+"Egr1",
+"Errfi1",
+"Fos",
+"Fosb",
+"Fosl2",
+"Gadd45g",
+"Hbegf",
+"Hmgb2",
+"Ier2",
+"Ier3",
+"Jun",
+"Junb",
+"Jund",
+"Kdm6b",
+"Klf4",
+"Klf6",
+"Klf9",
+"Lifr",
+"Lrrc32",
+"Mcl1",
+"Nfkbia",
+"Nfkbiz",
+"Nr4a1",
+"Nr4a2",
+"Osmr",
+"Pde4b",
+"Pim1",
+"Pnrc1",
+"Ppp1r15a",
+"Prkcg",
+"Sat1",
+"Sgk1",
+"Sik1",
+"Socs3",
+"Spry1",
+"Stat3",
+"Stmn1",
+"Trib1",
+"Uaca",
+"Zbtb20",
+"Zeb1",
+"Zfp36")
+```
+
+```{r}
+# Gather inflammation related genes from GO, KEGG and HALLMARKS results.
+# Also get a list of inflammation related genes from the top hierarchy of inflammation GO terms.
+# Create a plot to demonstrate the in-silico KO results. Inflammation related.
 # Add log2FC column and adjust for 0 p-values
 DR$log2FC <- log2(DR$FC)
 DR$p.adj <- ifelse(DR$p.adj == 0, 1e-300, DR$p.adj)
@@ -701,27 +949,8 @@ DR$p.adj <- ifelse(DR$p.adj == 0, 1e-300, DR$p.adj)
 DR$color <- "darkgrey" # Default color
 DR$color[DR$p.adj < 0.05] <- "#ffada9" # Significant genes
 
-# Add labels only for significant genes in EndoMT_markers and angiogenic genes
-DR$label <- ifelse(DR$gene %in% c("Zeb1",
-                                  "Cdkn1a",
-                                  "Dusp1",
-                                  "Epas1",
-                                  "Fos",
-                                  "Fosb",
-                                  "Gadd45g",
-                                  "Jun",
-                                  "Junb",
-                                  "Jund",
-                                  "Lifr",
-                                  "Mcl1",
-                                  "Nfkbia",
-                                  "Nr4a1",
-                                  "Osmr",
-                                  "Pim1",
-                                  "Prkcg",
-                                  "Socs3",
-                                  "Stat3",
-                                  "Stmn1"), DR$gene, "")
+# Add labels only for significant genes of interest. In this case inflammation related.
+DR$label <- ifelse(DR$gene %in% inflam_genes, DR$gene, "")
 
 # Define axis caps
 cap_y <- 30
@@ -744,7 +973,7 @@ ggplot() +
   geom_text_repel(
     data = other_points[other_points$label != "", ],
     aes(x = plot_x, y = plot_y, label = label),
-    size = 3, color = "black", max.overlaps = 50, box.padding = 0.4,
+    size = 4, color = "black", max.overlaps = 50, box.padding = 0.4,
     min.segment.length = 0,
     segment.size = 0.2
   ) +
@@ -758,10 +987,302 @@ ggplot() +
 
 # Save the plot
 ggsave(
-  filename = "../output/plots/11_zeb1_KO_genes.png",
-  width = 8,
-  height = 10,
+  filename = "../output/plots/12_zeb1_KO_inflammation_genes.svg",
+  width = 15,
+  height = 30,
   units = "cm",
   dpi = 320
 )
 ```
+
+```{r}
+# Extracting percent expressing data (proportion of Zeb1+ cells)
+zeb1_proportions <- Percent_Expressing(CNV_data, features = "Zeb1")
+
+# Tidy and rearrange the data.
+zeb1_proportions_tidy <- zeb1_proportions %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column("celltype") %>%
+  mutate(Zeb1 = as.numeric(Zeb1)) %>%
+  arrange(desc(Zeb1))
+
+write.csv(zeb1_proportions_tidy, file = "../output/data/11_zeb1_proportions.csv")
+```
+
+```{r}
+# Make a bar plot of the percent expressing Zeb1.
+
+# Define lesion (red) cell types
+lesion_types <- c("tip.cell", "proliferating", "CNV.transitioning", "immature", "neophalanx")
+
+# Prepare data
+zeb1_proportions_tidy <- zeb1_proportions_tidy %>%
+  mutate(color_group = ifelse(celltype %in% lesion_types, "Lesion", "Non-lesion")) %>%
+  mutate(celltype = factor(celltype, levels = celltype[order(Zeb1, decreasing = FALSE)]))
+
+# Plot
+ggplot(zeb1_proportions_tidy, aes(x = celltype, y = Zeb1, fill = color_group)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_text(aes(label = sprintf("%.1f%%", Zeb1)),
+            hjust = -0.2, size = 4) +
+  scale_fill_manual(
+    values = c("Lesion" = "#F4A6A6", "Non-lesion" = "#A6C8F4"),
+    name = NULL   # legend title can be added if you prefer
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.y = element_text(size = 12),
+    legend.position = "top"   # change to "right", "bottom", etc. if preferred
+  ) +
+  labs(
+    x = "Cell type",
+    y = "Percent expressing Zeb1",
+    title = "Zeb1 expression across CNV cell types"
+  ) +
+  coord_flip() +
+  ylim(0, 100)
+
+# Save the plot
+ggsave(
+  filename = "../output/plots/13_zeb1_proportions_cell_types.svg",
+  width = 15,
+  height = 15,
+  units = "cm",
+  dpi = 320
+)
+```
+
+```{r}
+# Get proportions, but for lesion and non-lesion
+Idents(CNV_data) <- "CNVECs.vs.CECs"
+
+# Extracting percent expressing data (proportion of Zeb1+ cells)
+zeb1_proportions_lesion_nonlesion <- Percent_Expressing(CNV_data, features = "Zeb1")
+
+Idents(CNV_data) <- "Cluster"
+
+# Tidy and rearrange the data.
+zeb1_proportions_lesion_nonlesion_tidy <- zeb1_proportions_lesion_nonlesion %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column("celltype") %>%
+  mutate(Zeb1 = as.numeric(Zeb1)) %>%
+  arrange(desc(Zeb1))
+
+write.csv(zeb1_proportions_lesion_nonlesion_tidy, file = "../output/data/12_zeb1_proportions_lesion_nonlesion.csv")
+```
+
+```{r}
+# Make a bar plot of the percent expressing Zeb1.
+
+# Define lesion (red) cell types
+lesion_types <- c("CNVECs")
+
+# Prepare data
+zeb1_proportions_lesion_nonlesion_tidy <- zeb1_proportions_lesion_nonlesion_tidy %>%
+  mutate(color_group = ifelse(celltype %in% lesion_types, "Lesion", "Non-lesion")) %>%
+  mutate(celltype = factor(celltype, levels = celltype[order(Zeb1, decreasing = FALSE)]))
+
+# Plot
+ggplot(zeb1_proportions_lesion_nonlesion_tidy, aes(x = celltype, y = Zeb1, fill = color_group)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_text(aes(label = sprintf("%.1f%%", Zeb1)),
+            hjust = -0.2, size = 4) +
+  scale_fill_manual(
+    values = c("Lesion" = "#F4A6A6", "Non-lesion" = "#A6C8F4"),
+    name = NULL   # legend title can be added if you prefer
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.y = element_text(size = 12),
+    legend.position = "none"
+  ) +
+  labs(
+    x = "Cell type",
+    y = "Percent expressing Zeb1",
+    title = "Zeb1 expression across CNV cell types"
+  ) +
+  coord_flip() +
+  ylim(0, 100)
+
+# Save the plot
+ggsave(
+  filename = "../output/plots/14_zeb1_proportions_lesion_nonlesion.svg",
+  width = 15,
+  height = 7,
+  units = "cm",
+  dpi = 320
+)
+```
+
+```{r}
+# The violin plots suggest that although tip cells have the greatest proportion
+# of Zeb1+ cells, capillary cells that DO express Zeb1 might have a higher expression.
+# We can check this with setting Zeb1 expression status (+/-) and then analysing
+# the zeb1+ cells.
+
+# A conclusion to draw could be: Zeb1 expression is needed in lesion ECs, hence
+# more cells express it. HOWEVER, capillary cells that do express Zeb1 (24%)
+# display a higher average expression. Why? What are these cells doing that need Zeb1?
+# STAIN CAPILLARIES - which capillary ECs express Zeb1?
+
+# Add meta data for Zeb1+ and Zeb1-
+# Create a data frame for Zeb1 data
+A <- data.frame(
+  Zeb1 = FetchData(CNV_data, vars = "Zeb1")[[1]],
+  ColCell = colnames(CNV_data)
+)
+
+# Initialize the counter to gather Zeb1+ and Zeb1- data
+Zeb1.counter <- rep("other", nrow(A))
+
+# Iterate through rows to classify Zeb1 status
+for (i in 1:nrow(A)) {
+  if (A[i, "Zeb1"] != 0) {
+    Zeb1.counter[i] <- "Zeb1+"
+  } else if ((A[i, "Zeb1"] == 0)) {
+    Zeb1.counter[i] <- "Zeb1-"
+  }
+}
+
+# Add Zeb1 status as metadata to the Seurat object
+CNV_data <- AddMetaData(CNV_data, Zeb1.counter, col.name = "Zeb1.counter")
+
+# 21,734 Zeb1- and 6,603 Zeb1+ cells in dataset.
+```
+
+```{r}
+# Seurat object of Zeb1+ cells by subsetting.
+zeb1_CNV_data <- subset(CNV_data, subset = Zeb1 > 0)
+```
+
+```{r}
+# Violin plot of Zeb1 across cell phenotypes.
+VlnPlot_scCustom(zeb1_CNV_data, features = "Zeb1", group.by = "Cluster", plot_median = TRUE) & NoLegend()
+
+# Violin plot of Zeb1 across lesion and non-lesion.
+VlnPlot_scCustom(zeb1_CNV_data, features = "Zeb1", group.by = "CNVECs.vs.CECs", plot_median = TRUE) & NoLegend()
+```
+
+```{r}
+# Get the average expression of Zeb1 in Zeb1+ cells.
+av_ex <- as.data.frame(AverageExpression(zeb1_CNV_data, features = "Zeb1", group.by = "Cluster", assays = "RNA")) %>%
+  t()
+write.csv(av_ex, file = "../output/data/13_zeb1_average_expression_Zeb1PosCells.csv")
+
+# Average expression of Zeb1 in all cells.
+av_ex_all <- as.data.frame(AverageExpression(CNV_data, features = "Zeb1", group.by = "Cluster", assays = "RNA")) %>%
+  t()
+write.csv(av_ex, file = "../output/data/14_zeb1_average_expression_all_cells.csv")
+```
+
+```{r}
+# Why do non-lesion cells that express Zeb1 express it at a higher level than lesion ECs?
+# Even though Zeb1 is more widely expressed in legion ECs.
+# What is Zeb1 doing in non-lesion ECs when it is expressed?
+# Is there a difference between healthy and CNV cells?
+```
+
+```{r}
+# Zeb1+ vs Zeb1- DE analysis in all cells in the dataset
+Idents(CNV_data) <- "Zeb1.counter"
+Zeb1DEtable <- FindMarkers(CNV_data, ident.1 = "Zeb1+", ident.2 = "Zeb1-", logfc.threshold = 0)
+Zeb1DEtable_sig <- Zeb1DEtable %>%
+  dplyr::filter(p_val_adj < 0.05)
+write.csv(Zeb1DEtable_sig, file = "../output/data/15_zeb1pos_vs_zeb1neg_DE.csv")
+```
+
+```{r}
+# Add meta data for Zeb1+ and Zeb1- in the lesion subset
+# Create a data frame for Zeb1 data
+B <- data.frame(
+  Zeb1 = FetchData(lesion_cells, vars = "Zeb1")[[1]],
+  ColCell = colnames(lesion_cells)
+)
+
+# Initialize the counter to gather Zeb1+ and Zeb1- data
+Zeb1.counter <- rep("other", nrow(B))
+
+# Iterate through rows to classify Zeb1 status
+for (i in 1:nrow(B)) {
+  if (B[i, "Zeb1"] != 0) {
+    Zeb1.counter[i] <- "Zeb1+"
+  } else if ((B[i, "Zeb1"] == 0)) {
+    Zeb1.counter[i] <- "Zeb1-"
+  }
+}
+
+# Add Zeb1 status as metadata to the Seurat object
+lesion_cells <- AddMetaData(lesion_cells, Zeb1.counter, col.name = "Zeb1.counter")
+```
+
+```{r}
+# Zeb1+ vs Zeb1- DE analysis in lesion cells
+Idents(lesion_cells) <- "Zeb1.counter"
+Zeb1DEtable_lesion <- FindMarkers(lesion_cells, ident.1 = "Zeb1+", ident.2 = "Zeb1-", logfc.threshold = 0)
+Zeb1DEtable_sig_lesion <- Zeb1DEtable_lesion %>%
+  dplyr::filter(p_val_adj < 0.05)
+write.csv(Zeb1DEtable_sig_lesion, file = "../output/data/16_zeb1pos_vs_zeb1neg_DE_lesion.csv")
+```
+
+```{r}
+# Create a subset of non-lesion cells
+nonlesion_cells <- subset(CNV_data, idents = c("proliferating",
+                                                        "tip cell",
+                                                        "CNV transitioning",
+                                                        "immature",
+                                                        "neophalanx"),
+                          invert = TRUE)
+
+# Save the lesion EC subset
+saveRDS(nonlesion_cells,"../output/Robjects/03_nonlesion_cells_subset.rds")
+```
+
+```{r}
+# Add meta data for Zeb1+ and Zeb1- in the non-lesion subset (it should already be there).
+# Create a data frame for Zeb1 data
+C <- data.frame(
+  Zeb1 = FetchData(nonlesion_cells, vars = "Zeb1")[[1]],
+  ColCell = colnames(nonlesion_cells)
+)
+
+# Initialize the counter to gather Zeb1+ and Zeb1- data
+Zeb1.counter <- rep("other", nrow(C))
+
+# Iterate through rows to classify Zeb1 status
+for (i in 1:nrow(C)) {
+  if (C[i, "Zeb1"] != 0) {
+    Zeb1.counter[i] <- "Zeb1+"
+  } else if ((C[i, "Zeb1"] == 0)) {
+    Zeb1.counter[i] <- "Zeb1-"
+  }
+}
+
+# Add Zeb1 status as metadata to the Seurat object
+nonlesion_cells <- AddMetaData(nonlesion_cells, Zeb1.counter, col.name = "Zeb1.counter")
+```
+
+```{r}
+# Zeb1+ vs Zeb1- DE analysis in lesion cells
+Idents(nonlesion_cells) <- "Zeb1.counter"
+Zeb1DEtable_nonlesion <- FindMarkers(nonlesion_cells, ident.1 = "Zeb1+", ident.2 = "Zeb1-", logfc.threshold = 0)
+Zeb1DEtable_sig_nonlesion <- Zeb1DEtable_nonlesion %>%
+  dplyr::filter(p_val_adj < 0.05)
+write.csv(Zeb1DEtable_sig_nonlesion, file = "../output/data/17_zeb1pos_vs_zeb1neg_DE_nonlesion.csv")
+```
+
+```{r}
+# Zeb1+ vs Zeb1- DE analysis in tip cells only
+# Get tip cell subset
+Idents(CNV_data) <- "Cluster"
+tip_cells <- subset(CNV_data, idents = "tip cell")
+
+# Zeb1+ vs Zeb1- DE analysis in tip cells
+Idents(tip_cells) <- "Zeb1.counter"
+Zeb1DEtable_tip <- FindMarkers(tip_cells, ident.1 = "Zeb1+", ident.2 = "Zeb1-", logfc.threshold = 0)
+Zeb1DEtable_tip_sig <- Zeb1DEtable_tip %>%
+  dplyr::filter(p_val_adj < 0.05)
+write.csv(Zeb1DEtable_tip_sig, file = "../output/data/18_zeb1pos_vs_zeb1neg_DE_tipcells.csv")
+```
+
