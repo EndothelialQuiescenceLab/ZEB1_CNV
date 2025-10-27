@@ -30,12 +30,12 @@ The required input files are metadata and quantified readcounts.
 
 ```{r}
 # A variable can be set for the file path to save having to continually write it out.
-file_path <- '/Volumes/ECQui_HD3/bulkRNA-seq/HUVECzeb1KD'
+file_path <- '~/cnv_paper/'
 ```
 
 ```{r}
 # Specify the meta data file, which is named 'groups.csv' here.
-sample_info <- file.path(file_path, 'data/groups.csv')
+sample_info <- file.path(file_path, 'data/bulkrnaseq/groups.csv')
 
 # Read the groups.csv file and store as a variable named meta.
 # The rownames are set to the first column of the data.
@@ -45,7 +45,7 @@ meta <- read.csv(sample_info, row.names = 1, stringsAsFactors = FALSE)
 
 ```{r}
 # Specify the readcounts data file, which is named 'counts_processed.csv' here.
-readcounts <- file.path(file_path, 'data/counts_processed.csv')
+readcounts <- file.path(file_path, 'data/bulkrnaseq/counts_processed.csv')
 
 # Read the readcount.csv file and store as a variable named data.
 # The header argument specifies wether to top row of the data is a header (column names).
