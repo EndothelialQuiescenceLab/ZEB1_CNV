@@ -838,21 +838,21 @@ plot_data <- plot_data %>%
 # Ensure key columns are numeric
 plot_data <- plot_data %>%
   mutate(
-    p.adjust = as.numeric(p.adjust),
+    qvalue = as.numeric(qvalue),
     Count    = as.numeric(Count))
 
 # Order the y axis by significance for each database
 plot_data <- plot_data %>%
-  arrange(p.adjust, Description) %>%
+  arrange(qvalue, Description) %>%
   mutate(Description = factor(Description, levels = rev(unique(Description))))
 
 # Make dotplot
 p <- ggplot(
   plot_data,
-  aes(x = GeneRatioNumeric, y = Description, size = Count, color = p.adjust)
+  aes(x = GeneRatioNumeric, y = Description, size = Count, color = qvalue)
 ) +
   geom_point() +
-  scale_color_gradient(high = "#327eba", low = "#e06663", name = "p.adjust") +
+  scale_color_gradient(high = "#327eba", low = "#e06663", name = "qvalue") +
   guides(color = guide_colorbar(reverse = TRUE)) +  # red = more significant at top of legend
   scale_size_continuous(breaks = c(5,10,15,20,25,30), range=c(3,10)) +
   labs(x = "Gene Ratio", y = NULL, title = "") +
