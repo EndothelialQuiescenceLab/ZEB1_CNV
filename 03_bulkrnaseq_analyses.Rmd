@@ -542,13 +542,30 @@ plot_data <- plot_data %>%
   arrange(qvalue, Description) %>%
   mutate(Description = factor(Description, levels = rev(unique(Description))))
 
+# Add log10-transformed qvalues
+plot_data <- plot_data %>%
+  mutate(log10qvalue = -log10(qvalue))
+
+# Compute min and max for colour scale
+min_log10qvalue<- min(plot_data$log10qvalue, na.rm = TRUE)
+max_log10qvalue <- max(plot_data$log10qvalue, na.rm = TRUE)
+
+# Generate automatic breaks for colour scale (5 equally spaced)
+breaks_q <- pretty(c(min_log10qvalue, max_log10qvalue), n = 5)
+
 # Make dotplot
 p <- ggplot(
   plot_data,
-  aes(x = GeneRatioNumeric, y = Description, size = Count, color = qvalue)
+  aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)
 ) +
   geom_point() +
-  scale_color_gradient(high = "#327eba", low = "#e06663", name = "qvalue") +
+  scale_color_gradient(high = "#e06663", 
+                       low =  "#327eba", 
+                       name = "-log10(qvalue)",
+                       limits = c(-log10(0.05), max_log10qvalue),
+                       oob = scales::squish,
+                       breaks = breaks_q
+                       ) +
   guides(color = guide_colorbar(reverse = TRUE)) +  # red = more significant at top of legend
   scale_size_continuous(breaks = c(5,10,15,20,25,30), range=c(2,8)) +
   labs(x = "Gene Ratio", y = NULL, title = "") +
