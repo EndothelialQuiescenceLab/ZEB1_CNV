@@ -22,6 +22,7 @@ library(ComplexHeatmap)
 library(stringr)
 library(dplyr)
 library(tidytext)
+library(tidyverse)
 library(ggpubr)
 library(msigdbr)
 ```
@@ -324,7 +325,7 @@ ggplot(zeb1_counts, aes(x = group, y = ENSG00000148516)) +
   geom_jitter(width = 0.1, size = 1, color = "black") +
   labs(x = "Group", y = "DESeq2 normalized count", title = "ZEB1 Expression") +
   theme_classic()
-ggsave(file = file.path(file_path, "output/plots/19_Zeb1_norm_counts.png"), width = 3, height = 4)
+ggsave(file = file.path(file_path, "output/plots/19_Zeb1_norm_counts.svg"), width = 3, height = 4)
 ```
 
 Volcano for all significant
@@ -416,9 +417,12 @@ ekeggZeb1DE <- enrichKEGG(
 
 ekeggZeb1DE <- setReadable(ekeggZeb1DE, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
 
-# ekeggZeb1DE@result$Description <- gsub(pattern = " - Mus musculus (house mouse)", replacement = "", ekeggZeb1DE@result$Description, fixed = T)
+ekeggZeb1DE <- ekeggZeb1DE@result %>%
+  dplyr::filter(qvalue < 0.05) %>%
+  arrange(qvalue)
+head(ekeggZeb1DE)
 
-write.csv(ekeggZeb1DE@result, file = file.path(file_path, "/output/data/25_HUVEC_zeb1_DE_KEGG.csv"))
+write.csv(ekeggZeb1DE, file = file.path(file_path, "/output/data/25_HUVEC_zeb1_DE_KEGG.csv"))
 ```
 
 ```{r}
@@ -428,14 +432,14 @@ m_t2g <- msigdbr(species = "Homo sapiens", collection = "H") %>%
   dplyr::select(gs_name, ensembl_gene)
 head(m_t2g)
 
-dr_hallmarks <- enricher(rownames(padj_DE), 
+deg_hallmarks <- enricher(rownames(padj_DE), 
                          TERM2GENE = m_t2g, 
                          qvalueCutoff = 0.05, 
                          universe = reference)
-dr_hallmarks <- dr_hallmarks@result %>%
+deg_hallmarks <- deg_hallmarks@result %>%
   dplyr::filter(qvalue < 0.05) %>%
   arrange(qvalue)
-head(dr_hallmarks)
+head(deg_hallmarks)
 
 # Create a lookup vector from padj_df
 id_to_symbol <- padj_df$symbol
@@ -450,9 +454,119 @@ convert_geneIDs <- function(geneID_str) {
 }
 
 # Apply conversion to dr_hallmarks
-dr_hallmarks$symbol <- sapply(dr_hallmarks$geneID, convert_geneIDs)
+deg_hallmarks$symbol <- sapply(deg_hallmarks$geneID, convert_geneIDs)
 
-write.csv(dr_hallmarks, file = "../output/data/26_HUVEC_zeb1_DE_HALLMARKS.csv")
+write.csv(deg_hallmarks, file = "../output/data/26_HUVEC_zeb1_DE_HALLMARKS.csv")
 ```
 
+```{r}
+# Dotplot of combined functional enrichment results for inflammation-related results
+# First, combine the data together.
+GO <- as.data.frame(simpleHUVECZEBego_padj@result)
+KEGG <- as.data.frame(ekeggZeb1DE)
+HALL <- as.data.frame(deg_hallmarks)
 
+GO$Type <- "GO"
+KEGG$Type <- "KEGG"
+HALL$Type <- "HALLMARKS"
+
+# Concatenate ID and Description for GO and KEGG
+GO <- GO %>%
+  mutate(Description = paste0(Description, " ", "(", ID, ")"))
+
+KEGG <- KEGG %>%
+  mutate(Description = paste0(Description, " ", "(", ID, ")"))
+KEGG <- KEGG[, !(names(KEGG) %in% c("category", "subcategory"))]
+
+all_res <- bind_rows(GO, KEGG, HALL)
+
+selected_terms <- c("HALLMARK_INTERFERON_GAMMA_RESPONSE",
+"HALLMARK_INTERFERON_ALPHA_RESPONSE",
+"HALLMARK_INFLAMMATORY_RESPONSE",
+"HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+"TNF signaling pathway (hsa04668)",
+"Cytokine-cytokine receptor interaction (hsa04060)",
+"IL-17 signaling pathway (hsa04657)",
+"NF-kappa B signaling pathway (hsa04064)",
+"Chemokine signaling pathway (hsa04062)",
+"Leukocyte transendothelial migration (hsa04670)",
+"AGE-RAGE signaling pathway in diabetic complications (hsa04933)",
+"NOD-like receptor signaling pathway (hsa04621)",
+"cell chemotaxis (GO:0060326)",
+"cellular response to tumor necrosis factor (GO:0071356)",
+"chemokine production (GO:0032602)",
+"chemotaxis (GO:0006935)",
+"cytokine-mediated signaling pathway (GO:0019221)",
+"interferon-mediated signaling pathway (GO:0140888)",
+"leukocyte cell-cell adhesion (GO:0007159)",
+"leukocyte migration (GO:0050900)",
+"leukocyte proliferation (GO:0070661)",
+"negative regulation of interleukin-1 production (GO:0032692)",
+"neutrophil activation (GO:0042119)",
+"regulation of chemokine production (GO:0032642)",
+"regulation of chemotaxis (GO:0050920)",
+"regulation of leukocyte migration (GO:0002685)",
+"regulation of leukocyte proliferation (GO:0070663)",
+"regulation of response to cytokine stimulus (GO:0060759)",
+"regulation of response to wounding (GO:1903034)",
+"response to chemokine (GO:1990868)",
+"response to interferon-alpha (GO:0035455)",
+"response to interferon-beta (GO:0035456)",
+"response to tumor necrosis factor (GO:0034612)",
+"response to type II interferon (GO:0034341)",
+"T cell activation (GO:0042110)",
+"T cell activation involved in immune response (GO:0002286)",
+"wound healing (GO:0042060)")
+
+# Filter selected pathways by Description
+plot_data <- all_res %>%
+  filter(Description %in% selected_terms)
+
+# Create readable labels
+plot_data <- plot_data %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# Convert GeneRatio to numeric
+plot_data <- plot_data %>%
+  separate(GeneRatio, into = c("x", "y"), sep = "/") %>%
+  mutate(GeneRatioNumeric = as.numeric(x) / as.numeric(y))
+
+# Ensure key columns are numeric
+plot_data <- plot_data %>%
+  mutate(
+    qvalue = as.numeric(qvalue),
+    Count    = as.numeric(Count))
+
+# Order the y axis by significance for each database
+plot_data <- plot_data %>%
+  arrange(qvalue, Description) %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# Make dotplot
+p <- ggplot(
+  plot_data,
+  aes(x = GeneRatioNumeric, y = Description, size = Count, color = qvalue)
+) +
+  geom_point() +
+  scale_color_gradient(high = "#327eba", low = "#e06663", name = "qvalue") +
+  guides(color = guide_colorbar(reverse = TRUE)) +  # red = more significant at top of legend
+  scale_size_continuous(breaks = c(5,10,15,20,25,30), range=c(2,8)) +
+  labs(x = "Gene Ratio", y = NULL, title = "") +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 10)
+  )
+
+print(p)
+ggsave(
+  plot = p,
+  filename = "../output/plots/21_HUVEC_zeb1_KD_funenrich_inflamm.svg",
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 320
+)
+```
