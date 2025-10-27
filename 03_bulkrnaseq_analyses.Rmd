@@ -22,6 +22,8 @@ library(ComplexHeatmap)
 library(stringr)
 library(dplyr)
 library(tidytext)
+library(ggpubr)
+library(msigdbr)
 ```
 
 Prepare the input files. A meta file needs to be created that contains any information that is relevant to the analysis.
@@ -36,6 +38,7 @@ file_path <- '~/cnv_paper/'
 ```{r}
 # Specify the meta data file, which is named 'groups.csv' here.
 sample_info <- file.path(file_path, 'data/bulkrnaseq/groups.csv')
+# sample_info <- file.path(file_path, 'data/bulkrnaseq/whole_test/groups.csv')
 
 # Read the groups.csv file and store as a variable named meta.
 # The rownames are set to the first column of the data.
@@ -46,6 +49,7 @@ meta <- read.csv(sample_info, row.names = 1, stringsAsFactors = FALSE)
 ```{r}
 # Specify the readcounts data file, which is named 'counts_processed.csv' here.
 readcounts <- file.path(file_path, 'data/bulkrnaseq/counts_processed.csv')
+# readcounts <- file.path(file_path, 'data/bulkrnaseq/whole_test/counts_processed.csv')
 
 # Read the readcount.csv file and store as a variable named data.
 # The header argument specifies wether to top row of the data is a header (column names).
@@ -126,7 +130,7 @@ It is useful to have these in a .csv file that can be easily viewed, shared and 
 
 ```{r}
 write.csv(as.data.frame(normalised_counts), 
-           file=file.path(file_path,"output/data/normalised_counts.csv"))
+           file=file.path(file_path,"output/data/19_HUVEC_normalised_counts.csv"))
 ```
 
 Regularised log transformation.
@@ -146,51 +150,24 @@ rld_mat <- assay(rld)
 ```
 
 ```{r}
-rld_mat_huvec <- rld_mat[,1:6]
-```
-
-```{r}
-meta_huvec <- meta[1:6,]
-```
-
-```{r}
 # Run the PCA.
 pca_output <- pca(rld_mat, metadata = meta)
-pca_output_huvec <- pca(rld_mat_huvec, metadata=meta_huvec)
 ```
 
 Plot the PCA for all samples and cell types in a biplot.
 
 ```{r}
 # Generate the plot.
-pca1_2_huvec <- biplot(pca_output_huvec,
-                 colby = 'cell_type',
-                 #colkey = c('HDLEC' = 'blue', 'HUVEC' = 'red'),
-                 shape = 'treatment',
+pca1_2_huvec <- biplot(pca_output,
+                 colby = 'treatment',
                  legendPosition = 'right',
                  #colLegendTitle = 'Cell Type',
                  shapeLegendTitle = 'Treatment',
-                 lab = meta_huvec$ID)
+                 lab = meta$ID)
 # Show the plot.
 pca1_2_huvec
 
-ggsave(file=file.path(file_path,"output/plots/pca_huvec.png"), height = 5, width = 6)
-```
-
-```{r}
-# Generate the plot.
-pca1_2 <- biplot(pca_output,
-                 colby = 'cell_type',
-                 colkey = c('HDLEC' = 'blue', 'HUVEC' = 'red'),
-                 shape = 'treatment',
-                 legendPosition = 'right',
-                 colLegendTitle = 'Cell Type',
-                 shapeLegendTitle = 'Treatment',
-                 lab = NULL)
-# Show the plot.
-pca1_2
-
-ggsave(file=file.path(file_path,"output/plots/pca.png"))
+ggsave(file=file.path(file_path,"output/plots/18_pca_huvec.svg"), height = 5, width = 6)
 ```
 
 Plotting a scree plot. This allows us to see the total number of principal components and the variance of each principal component.
@@ -270,7 +247,7 @@ all_DE <- results[order(results$padj),]
 
 # Export to a .csv
 write.csv(as.data.frame(all_DE),
-          file = file.path(file_path, "output/data/all_DE.csv"))
+          file = file.path(file_path, "output/data/20_all_DE.csv"))
 ```
 
 Retrieve all significant DE results (padj < 0.05).
@@ -284,7 +261,7 @@ padj_DE <- padj_DE[order(padj_DE$padj),]
 
 # Export to a .csv
 write.csv(as.data.frame(padj_DE),
-          file = file.path(file_path, "output/data/padj_DE.csv"))
+          file = file.path(file_path, "output/data/21_padj_DE.csv"))
 ```
 
 Retrieve all significant DE results (padj < 0.05) and log2FC threshold 1.5.
@@ -298,7 +275,7 @@ fc_DE <- fc_DE[order(-fc_DE$log2FoldChange),]
 
 # Export to a .csv
 write.csv(as.data.frame(fc_DE),
-          file = file.path(file_path, "output/data/15_fc_DE.csv"))
+          file = file.path(file_path, "output/data/22_log2fc_padj_DE.csv"))
 ```
 
 ```{r}
@@ -312,7 +289,7 @@ reference <- rownames(normCounts_noZero)
 reference
 
 write.csv(as.data.frame(reference), 
-            file=file.path(file_path,"output/data/reference2.csv"))
+            file=file.path(file_path,"output/data/23_universe_reference.csv"))
 ```
 
 Plot Zeb1 normalised counts bar chart
@@ -328,18 +305,26 @@ summary_data <- zeb1_counts %>%
             sd_count = sd(ENSG00000148516))
 print(summary_data)
 
-# Plotting: 
-# - stat_summary with geom="bar" plots the mean for each group.
-# - stat_summary with fun.data=mean_sdl (mult=1) adds error bars for ±1 SD.
-# - geom_jitter overlays individual data points.
+# significance with t-test
+t.test(ENSG00000148516 ~ group, data = zeb1_counts, var.equal = FALSE)
+
+# stat_summary with geom="bar" plots the mean for each group.
+# stat_summary with fun.data=mean_sdl (mult=1) adds error bars for ±1 SD.
+# geom_jitter overlays individual data points.
 ggplot(zeb1_counts, aes(x = group, y = ENSG00000148516)) +
   stat_summary(fun = mean, geom = "bar", fill = "darkgrey", width = 0.3) +
   stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
                geom = "errorbar", width = 0.2) +
+  stat_compare_means(
+    method = "t.test",
+    label = "p.format",
+    comparisons = list(c("NS_control", "ZEB1_KD")),
+    var.equal = FALSE
+  ) +
   geom_jitter(width = 0.1, size = 1, color = "black") +
   labs(x = "Group", y = "DESeq2 normalized count", title = "ZEB1 Expression") +
   theme_classic()
-ggsave(file = file.path(file_path, "output/plots/Zeb1_norm_counts.png"), width = 3, height = 4)
+ggsave(file = file.path(file_path, "output/plots/19_Zeb1_norm_counts.png"), width = 3, height = 4)
 ```
 
 Volcano for all significant
@@ -352,244 +337,50 @@ fc_thresh <- 0
 results_15 <- as.data.frame(results)
 
 # Specify the category of DEGs depending on the threshold.
-results_15$direction<-"Not Differentially Expressed"
-results_15$direction[results_15$log2FoldChange>=fc_thresh & results_15$padj<padj_thresh]<-"Upregulated"
-results_15$direction[results_15$log2FoldChange<= -fc_thresh & results_15$padj<padj_thresh]<-"Downregulated"
-results_15$direction[results_15$symbol == 'ZEB1'] <- "ZEB1"
+results_15$direction <- "Not Differentially Expressed"
+results_15$direction[results_15$log2FoldChange >= fc_thresh & results_15$padj < padj_thresh] <- "Upregulated"
+results_15$direction[results_15$log2FoldChange <= -fc_thresh & results_15$padj < padj_thresh] <- "Downregulated"
 
-# Add the labels for the volcano plot. Top by log2FC and top by padj, as well as PROX1.
-Upregulated_labels <- c("TAGLN", "COL1A1", "COL1A2") 
-Downregulated_labels <- c("CXCR4", "VCAM1", "ICAM1") 
+# Label data for ZEB1 only
 ZEB1_labels <- "ZEB1"
+ZEB1_labels_data <- results_15[match(ZEB1_labels, results_15$symbol), ]
 
-# Gather the data for the labels to match in the volcano plot.
-Upregulated_labels_data <- results_15[match(Upregulated_labels, results_15$symbol),]
-Downregulated_labels_data <- results_15[match(Downregulated_labels, results_15$symbol),]
-ZEB1_labels_data <- results_15[match(ZEB1_labels, results_15$symbol),]
 
-#Volcano plot of results.
-# Specify where to save and the file name.
-png(file.path(file_path,"output/plots/volcano_all_padj_labels.png"),
-    res = 300,
-    height = 100, 
-    width = 150,
-    units = "mm")
-
-# Start building the plot.
-ggplot(data=results_15, aes(log2FoldChange, -log10(padj), label = results_15$symbol)) +
-  geom_point(aes(col=direction), size=0.5) +
+# Volcano plot
+ggplot(data = results_15, aes(log2FoldChange, -log10(padj))) +
+  geom_point(aes(col = direction), size = 0.5) +
   
-  # Specify the colours that will be used for the DEG category.
-  scale_colour_manual(name='Differential Expression', values = setNames(c('red', 'blue', 'grey'), c('Upregulated', 'Downregulated', 'Not Differentially Expressed'))) +
+  # Colour scale for DEGs
+  scale_colour_manual(
+    name = "Differential Expression",
+    values = c("Upregulated" = "red", 
+               "Downregulated" = "blue", 
+               "Not Differentially Expressed" = "grey")
+  ) +
   
-  # Add dotted lines to show the thresholds.
-  geom_vline(xintercept = c(fc_thresh, fc_thresh*-1), linetype = "dashed") +
+  # Threshold lines
+  geom_vline(xintercept = c(fc_thresh, -fc_thresh), linetype = "dashed") +
   geom_hline(yintercept = -log10(padj_thresh), linetype = "dashed") +
   
-  # This repels the labels through iterations to stop them from overlapping each other.
-  geom_text_repel(data=Upregulated_labels_data,
-                  aes(log2FoldChange, -log10(padj), label=Upregulated_labels_data$symbol, fontface = "bold.italic"),
-                  min.segment.length=unit(0, 'lines'),
-                  size=2,
-                  #nudge_x = 2,
-                  force = 10,
-                  max.iter = Inf,
-                  #segment.color=NA
-                  ) +
-
-  # This repels the labels through iterations to stop them from overlapping each other.
-  geom_text_repel(data=Downregulated_labels_data,
-                  aes(log2FoldChange, -log10(padj), label=Downregulated_labels_data$symbol, fontface = "bold.italic"),
-                  min.segment.length=unit(0, 'lines'),
-                  size=2,
-                  #nudge_x = 2,
-                  force = 10,
-                  max.iter = Inf,
-                  #segment.color=NA
-                  ) +
-
-      geom_text_repel(data=ZEB1_labels_data,
-                  aes(log2FoldChange, -log10(padj), label=ZEB1_labels_data$symbol, fontface = "bold.italic"),
-                  min.segment.length=unit(0, 'lines'),
-                  size=2,
-                  color = 'brown4') +
+  # Label only ZEB1
+  geom_text_repel(
+    data = ZEB1_labels_data,
+    aes(log2FoldChange, -log10(padj), label = symbol),
+    fontface = "bold.italic",
+    size = 2,
+    min.segment.length = unit(0, "lines"),
+    force = 10,
+    max.iter = Inf
+  ) +
   
-  # Add a title to the plot.
-  ggtitle("HUVEC ZEB1 KD Volcano Plot")
-dev.off()
+  ggtitle("HUVEC ZEB1 KD Volcano Plot") +
+  theme_classic()
+
+ggsave(file = file.path(file_path, "output/plots/20_volcano_all_padj_labels.svg"), width = 5, height = 3)
 ```
 
-Heatmap of top DEGs
-
-```{r}
-# Get top DEGs
-
-padj_df <- as.data.frame(padj_DE)
-
-top10_pos_by_padj <- padj_df %>%
-  dplyr::filter(log2FoldChange > 0) %>%
-  dplyr::arrange(padj) %>%
-  dplyr::slice_head(n = 10)
-
-top10_neg_by_padj <- padj_df %>%
-  dplyr::filter(log2FoldChange < 0) %>%
-  dplyr::arrange(padj) %>%
-  dplyr::slice_head(n = 10)
-
-top10_pos_by_log2FC <- padj_df %>%
-  dplyr::filter(log2FoldChange > 0) %>%
-  dplyr::arrange(dplyr::desc(log2FoldChange)) %>%
-  dplyr::slice_head(n = 10)
-
-top10_neg_by_log2FC <- padj_df %>%
-  dplyr::filter(log2FoldChange < 0) %>%
-  dplyr::arrange(log2FoldChange) %>%
-  dplyr::slice_head(n = 10)
-
-# Concatenate symbols from all four subsets and remove duplicates
-all_top_symbols <- unique(
-  c(
-    rownames(top10_pos_by_padj),
-    rownames(top10_neg_by_padj),
-    rownames(top10_pos_by_log2FC),
-    rownames(top10_neg_by_log2FC)
-  )
-)
-
-all_top_symbols
-
-# Retrieve and process data for heatmap.
-
-HUVEC_rld <- rld_mat[,1:6]
-degs_rld <- as.data.frame(HUVEC_rld[match(all_top_symbols, rownames(HUVEC_rld)),])
-degs_rld.scale <- as.data.frame(t(scale(t(degs_rld), center=T, scale=T)))
-
-# Convert ensembl IDs to symbols in the dataframe.
-
-degs_rld.scale$symbol <- ens_to_symbol$hgnc_symbol[match(rownames(degs_rld.scale), ens_to_symbol$ensembl_gene_id)]
-rownames(degs_rld.scale) <- degs_rld.scale$symbol
-degs_rld.scale$log2FC <- padj_df$log2FoldChange[match(rownames(degs_rld.scale), padj_df$symbol)]
-degs_rld.scale <- as.matrix(degs_rld.scale[,-7])
-
-fill <- colorRampPalette(c("blue", "white", "red"))(100)
-
-fill2 <- ifelse(anno < 0, "blue", "red")
-
-anno <- as.numeric(format(round(degs_rld.scale[,7],2), nsmall = 2))
-
-ha <- HeatmapAnnotation(log2FC = anno_barplot(anno,
-                    bg_gp = gpar(fill = fill2),
-                    labels_gp = gpar(fontsize=7)),
-                    which = "row",
-                    border = FALSE,
-                    annotation_name_gp = gpar(fontsize=8))
-                                       #gp = gpar(fontsize=5),
-                                       #show_name = T,
-                                       #annotation_name_gp = gpar(fontsize=6)))
-
-hb <- rowAnnotation(log2FC = anno_text(anno,
-                                       gp = gpar(fontsize=6)))
-
-top.degs.heatmap <- Heatmap(degs_rld.scale[,1:6],
-                          col = colorRampPalette(c("blue", "white", "red"))(100),
-                          cluster_rows = T,
-                          cluster_columns = F,
-                          clustering_distance_rows = "pearson",
-                          clustering_method_rows = "average",
-                          row_names_gp = gpar(fontsize=6),
-                          column_names_gp = gpar(fontsize=8),
-                          row_title_gp = gpar(fontsize=7),
-                          row_title_rot = 0,
-                          column_gap = unit(0.5, "mm"),
-                          column_title = NULL,
-                          heatmap_legend_param = list(title ="Z-score"),
-                          border=T,
-                          right_annotation = ha,
-                   heatmap_height = unit(3, "mm")*nrow(degs_rld.scale),
-                   heatmap_width = unit(100,"mm"))
-
-pdf(file.path(file_path,"output/plots/degs_heatmap.pdf"),
-   width = 8,
-  height = 12)
-top.degs.heatmap
-dev.off()
-```
-
-Heatmap of DEGs of interest
-
-```{r}
-# Get GOI
-
-row_anno <- read.csv(file = file.path(file_path,"output/data/row_anno.csv"), stringsAsFactors = F,
-                     header = F, row.names = 1)
-
-padj_df <- as.data.frame(padj_DE)
-
-GOI <- padj_DE[match(rownames(row_anno), padj_df$symbol),]
-GOI <- data.frame(GOI)
-GOI.genes <- rownames(GOI)
-
-# Retrieve and process data for heatmap.
-
-HUVEC_rld <- rld_mat[,1:6]
-GOI_rld <- as.data.frame(HUVEC_rld[match(GOI.genes, rownames(HUVEC_rld)),])
-GOI_rld.scale <- as.data.frame(t(scale(t(GOI_rld), center=T, scale=T)))
-
-# Convert ensembl IDs to symbols in the dataframe.
-
-GOI_rld.scale$symbol <- ens_to_symbol$hgnc_symbol[match(rownames(GOI_rld.scale), ens_to_symbol$ensembl_gene_id)]
-rownames(GOI_rld.scale) <- GOI_rld.scale$symbol
-GOI_rld.scale$log2FC <- padj_df$log2FoldChange[match(rownames(GOI_rld.scale), padj_df$symbol)]
-GOI_rld.scale <- as.matrix(GOI_rld.scale[,-7])
-
-ha <- rowAnnotation(df = row_anno,
-                        show_legend = F,
-                        border = F,
-                        show_annotation_name = F,
-                        simple_anno_size = unit(1, "mm"),
-                    col = list(V2 = c("Tip cell" = "black",
-                                      "EndoMT" = "black",
-                                      "Splicing" = "black",
-                                      "TF" = "black")))
-
-anno <- as.numeric(format(round(GOI_rld.scale[,7],2), nsmall = 2))
-
-hb <- HeatmapAnnotation(log2FC = anno_barplot(anno,
-                    bg_gp = gpar(fill = fill2),
-                    labels_gp = gpar(fontsize=7)),
-                    which = "row",
-                    border = FALSE,
-                    annotation_name_gp = gpar(fontsize=8))
-
-heatmap <- Heatmap(GOI_rld.scale[,1:6],
-                    col = colorRampPalette(c("blue", "white", "red"))(100),
-                    cluster_rows = T,
-                    cluster_columns = F,
-                   clustering_distance_rows = "pearson",
-                   clustering_method_rows = "average",
-                    row_split = row_anno,
-                    row_names_gp = gpar(fontsize=6),
-                    column_names_gp = gpar(fontsize=8),
-                    row_title_gp = gpar(fontsize=7),
-                    row_title_rot = 0,
-                   left_annotation = ha,
-                   right_annotation = hb,
-                    row_gap = unit(1, "mm"),
-                    column_gap = unit(0.5, "mm"),
-                    column_title = NULL,
-                    heatmap_legend_param = list(title ="Z-score"),
-                    border=T,
-                   heatmap_height = unit(5, "mm")*nrow(GOI_rld.scale),
-                   heatmap_width = unit(100,"mm"))
-
-heatmap
-
-pdf(file.path(file_path,"output/plots/GOI_heatmap.pdf"),
-   width = 8,
-  height = 12)
-heatmap
-dev.off()
-```
+Gene Ontology analysis.
+Use the custom background reference!
 
 ```{r}
 HUVECego_padj <- enrichGO(
@@ -605,96 +396,7 @@ HUVECego_padj <- enrichGO(
 
 simpleHUVECZEBego_padj <- clusterProfiler::simplify(HUVECego_padj, cutoff = 0.7, by = "p.adjust", select_fun = min)
 
-write.csv(simpleHUVECZEBego_padj@result, file = file.path(file_path, "output/data/HUVEC_zeb1_DE_GO_padj.csv"))
-```
-
-```{r}
-selected_pathways <- c("cytokine-mediated signaling pathway",
-"leukocyte migration",
-"leukocyte chemotaxis",
-"response to chemokine",
-"response to tumor necrosis factor",
-"regulation of chemokine production",
-"response to type II interferon",
-"interferon-mediated signaling pathway",
-"regulation of response to cytokine stimulus",
-"response to interferon-alpha",
-"response to interleukin-1",
-"response to interferon-beta",
-"cell-substrate adhesion",
-"negative regulation of cell adhesion",
-"homotypic cell-cell adhesion",
-"leukocyte cell-cell adhesion",
-"cell-cell adhesion via plasma-membrane adhesion molecules",
-"integrin-mediated signaling pathway",
-"cell adhesion mediated by integrin",
-"cell-cell junction organization",
-"protein localization to cell junction",
-"extracellular matrix organization",
-"negative regulation of cell motility",
-"regulation of vasculature development",
-"endothelium development",
-"endothelial cell differentiation",
-"angiogenesis involved in wound healing",
-"regulation of vasculogenesis",
-"blood vessel endothelial cell proliferation involved in sprouting angiogenesis",
-"lymph node development",
-"regulation of vascular permeability")
-
-A <- "Inflammation"
-B <- "Adhesion"
-C <- "Endothelial/Vessel"
-
-Annotations <- c(A,A,A,A,A,A,A,A,A,A,A,A,
-                 B,B,B,B,B,B,B,B,B,B,B,
-                 C,C,C,C,C,C,C,C)
-
-GO.both.plot.data <- simpleHUVECZEBego_padj %>% filter(Description %in% selected_pathways)
-GO.both.plot.data <- GO.both.plot.data[match(selected_pathways, GO.both.plot.data$Description),]
-GO.both.plot.data$Annotation <- Annotations
-GO.both.plot.data$Description <- factor(GO.both.plot.data$Description, levels = unique(selected_pathways))
-GO.both.plot.data$geneRatioNum <- sapply(strsplit(GO.both.plot.data$GeneRatio, "/"), function(x) {
-  as.numeric(x[1]) / as.numeric(x[2])
-})
-GO.both.plot.data <- GO.both.plot.data[order(GO.both.plot.data$geneRatioNum), ]
-```
-
-```{r}
-# Reorder 'Description' within each 'Annotation' facet by 'geneRatioNum'
-GO.both.plot.data <- GO.both.plot.data %>%
-  mutate(Description = reorder_within(Description, geneRatioNum, Annotation))
-
-dotplots.both <- ggplot(GO.both.plot.data, aes(x=geneRatioNum, y=Description, color = p.adjust, size = Count)) +
-  geom_point() +
-  scale_color_gradient(high = "#327eba", low = "#e06663", name = "p.adjust", limits = c(0, 0.05)) +
-  scale_size_continuous(breaks = c(10,20,30), range=c(6,15)) +
-  theme_minimal() +
-  theme(panel.border = element_rect(color = "black", fill = NA)) +
-  theme(axis.text.x = element_text(angle = 0, face = "bold", size = 25, vjust = 0.1),
-        axis.text.y = element_text(face = "bold", size = 30),
-        strip.text = element_text(face="bold", size = 30),
-        strip.background = element_rect(fill = "grey"),
-        legend.title = element_text(size = 30),
-        legend.text = element_text(size = 20),
-        axis.title.x = element_text(face = "bold", size = 25, vjust = -3),
-        plot.margin = margin(10, 10, 100, 10),
-        legend.box.margin=margin(10,10,10,10)) +
-  facet_wrap(~ Annotation, scales = "free", nrow = 1) +
-  xlab("GeneRatio") +
-  ylab("") +
-  scale_y_discrete(labels = function(Description) str_wrap(Description, width = 40)) +
-  scale_y_reordered(labels = function(x) {
-    x <- gsub("__.*$", "", x)              # remove suffix
-    x <- stringr::str_wrap(x, width = 40)  # wrap text if desired
-    x
-  })
-  #legend
-
-pdf(file = file.path(file_path, "output/plots/HUVEC_zeb1_DE_GO_padj_split.pdf"),
-    width = 45,
-    height = 15)
-dotplots.both
-dev.off()
+write.csv(simpleHUVECZEBego_padj@result, file = file.path(file_path, "output/data/24_HUVEC_zeb1_DE_GO_padj.csv"))
 ```
 
 ```{r}
@@ -710,60 +412,47 @@ ekeggZeb1DE <- enrichKEGG(
     keyType       = "kegg",
     pAdjustMethod = "BH",
     qvalueCutoff  = 0.05,
-    universe = reference_entrez)
+    universe = reference_entrez$ENTREZID)
 
 ekeggZeb1DE <- setReadable(ekeggZeb1DE, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
 
 # ekeggZeb1DE@result$Description <- gsub(pattern = " - Mus musculus (house mouse)", replacement = "", ekeggZeb1DE@result$Description, fixed = T)
 
-write.csv(ekeggZeb1DE@result, file = file.path(file_path, "/output/data/zeb1_DE_KEGG.csv"))
+write.csv(ekeggZeb1DE@result, file = file.path(file_path, "/output/data/25_HUVEC_zeb1_DE_KEGG.csv"))
 ```
 
 ```{r}
-# Select specific GO terms by name or ID
-selected_DE_KEGG_terms <- c("TNF signaling pathway",
-"Cytokine-cytokine receptor interaction",
-"AGE-RAGE signaling pathway in diabetic complications",
-"IL-17 signaling pathway",
-"NF-kappa B signaling pathway",
-"Chemokine signaling pathway",
-"ECM-receptor interaction",
-"Leukocyte transendothelial migration",
-"Regulation of actin cytoskeleton",
-"Focal adhesion",
-"NOD-like receptor signaling pathway",
-"Tight junction",
-"Cell adhesion molecules")
+# Perform functional enrichment analysis of DR genes against HALLMARKS
+# Retrieve the sets of hallmarks data. Refine the data.
+m_t2g <- msigdbr(species = "Homo sapiens", collection = "H") %>% 
+  dplyr::select(gs_name, ensembl_gene)
+head(m_t2g)
 
-dot_plot <- dotplot(ekeggZeb1DE, showCategory = selected_DE_KEGG_terms, font.size = 10)
-ggsave(
-         file = file.path(file_path, "/output/plots/zeb1_DE_KEGG.png"),
-         width = 12, height = 10, units = "cm", dpi = 320)
-```
+dr_hallmarks <- enricher(rownames(padj_DE), 
+                         TERM2GENE = m_t2g, 
+                         qvalueCutoff = 0.05, 
+                         universe = reference)
+dr_hallmarks <- dr_hallmarks@result %>%
+  dplyr::filter(qvalue < 0.05) %>%
+  arrange(qvalue)
+head(dr_hallmarks)
 
-Plot iRegulon results
+# Create a lookup vector from padj_df
+id_to_symbol <- padj_df$symbol
+names(id_to_symbol) <- rownames(padj_df)
 
-```{r}
-# Create the data frame
-df <- data.frame(
-  TF = c("IRF1", "STAT2", "ZEB1", "STAT1", "BACH1", "EBF1", "ELK1", 
-         "AFF4", "KDM4A", "TEAD1"),
-  NES = c(10.29, 7.713, 6.792, 6.723, 4.44, 3.737, 3.711,
-          3.387, 3.271, 3.214),
-  Targets = c(136, 30, 54, 32, 127, 28, 28,
-              59, 60, 40)
-)
+# Define a function to convert Ensembl IDs in geneID to symbols
+convert_geneIDs <- function(geneID_str) {
+  ids <- unlist(strsplit(geneID_str, "/"))        # split Ensembl IDs by "/"
+  symbols <- id_to_symbol[ids]                    # map to gene symbols
+  symbols <- symbols[!is.na(symbols)]             # remove missing ones
+  paste(symbols, collapse = "/")                  # rejoin into a string
+}
 
-ggplot(df, aes(x = reorder(TF, -NES), y = NES, size = Targets)) +
-  geom_point() +
-  scale_y_continuous(limits = c(0, 12)) +  # y-axis from 0 to 11
-  theme_classic() +
-  labs(x = "Predicted Regulon", 
-       y = "Normalised enrichment score (NES)", 
-       size = "Targets",
-       title = "iRegulon predicted regulons")
+# Apply conversion to dr_hallmarks
+dr_hallmarks$symbol <- sapply(dr_hallmarks$geneID, convert_geneIDs)
 
-ggsave(file = file.path(file_path, "output/plots/iRegulon.png"), width = 6, height = 4)
+write.csv(dr_hallmarks, file = "../output/data/26_HUVEC_zeb1_DE_HALLMARKS.csv")
 ```
 
 
