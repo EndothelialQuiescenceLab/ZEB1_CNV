@@ -25,6 +25,9 @@ library(tidytext)
 library(tidyverse)
 library(ggpubr)
 library(msigdbr)
+library(ggdendro)
+library(patchwork)
+library(svglite)
 ```
 
 Prepare the input files. A meta file needs to be created that contains any information that is relevant to the analysis.
@@ -442,8 +445,8 @@ deg_hallmarks <- deg_hallmarks@result %>%
 head(deg_hallmarks)
 
 # Create a lookup vector from padj_df
-id_to_symbol <- padj_df$symbol
-names(id_to_symbol) <- rownames(padj_df)
+id_to_symbol <- padj_DE$symbol
+names(id_to_symbol) <- rownames(padj_DE)
 
 # Define a function to convert Ensembl IDs in geneID to symbols
 convert_geneIDs <- function(geneID_str) {
@@ -462,6 +465,8 @@ write.csv(deg_hallmarks, file = "../output/data/26_HUVEC_zeb1_DE_HALLMARKS.csv")
 ```{r}
 # Dotplot of combined functional enrichment results for inflammation-related results
 # First, combine the data together.
+
+# ============= Prepare the data =============
 GO <- as.data.frame(simpleHUVECZEBego_padj@result)
 KEGG <- as.data.frame(ekeggZeb1DE)
 HALL <- as.data.frame(deg_hallmarks)
@@ -526,6 +531,10 @@ plot_data <- all_res %>%
 plot_data <- plot_data %>%
   mutate(Description = factor(Description, levels = rev(unique(Description))))
 
+# For GO and KEGG only put geneID into symbol column. Gives a column we can grab later
+plot_data <- plot_data %>%
+  mutate(symbol = if_else(Type %in% c("GO","KEGG"), geneID, symbol))
+
 # Convert GeneRatio to numeric
 plot_data <- plot_data %>%
   separate(GeneRatio, into = c("x", "y"), sep = "/") %>%
@@ -553,7 +562,9 @@ max_log10qvalue <- max(plot_data$log10qvalue, na.rm = TRUE)
 # Generate automatic breaks for colour scale (5 equally spaced)
 breaks_q <- pretty(c(min_log10qvalue, max_log10qvalue), n = 5)
 
-# Make dotplot
+write.csv(plot_data, file = "../output/data/plot_data.csv")
+
+# ============= Make dotplot =============
 p <- ggplot(
   plot_data,
   aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)
@@ -587,3 +598,90 @@ ggsave(
   dpi = 320
 )
 ```
+
+```{r}
+# Heatmap of inflammation related genes.
+# From the terms used in the dotplot, we have 93 DEGs related to inflammation.
+
+# Extract the unique inflammation related genes.
+inflam_genes <- unlist(strsplit(plot_data$symbol, "/"))
+unique_inflam_genes <- sort(unique(inflam_genes[inflam_genes != ""]))
+
+# Get dataframe of padj_DE results.
+padj_df <- as.data.frame(padj_DE)
+
+# Extract DE results for the inflam related genes only.
+unique_inflam_genes_ensembl <- padj_df[match(unique_inflam_genes, padj_df$symbol),]
+
+# Get the regularized log transformed counts matrix that is required for the heatmap.
+inflam_heat_data <- as.data.frame(rld_mat[match(rownames(unique_inflam_genes_ensembl), rownames(rld_mat)),])
+# Scale the data.
+inflam_heat_data_scale <- as.data.frame(t(scale(t(inflam_heat_data), center=T, scale=T)))
+
+# Convert ensembl IDs to symbols in the dataframe.
+inflam_heat_data_scale$symbol <- unique_inflam_genes_ensembl$symbol[match(rownames(inflam_heat_data_scale), rownames(unique_inflam_genes_ensembl))]
+# Make the rownames symbols not ensembl.
+rownames(inflam_heat_data_scale) <- inflam_heat_data_scale$symbol
+# Add log2FC values
+inflam_heat_data_scale$log2FC <- unique_inflam_genes_ensembl$log2FoldChange[match(rownames(inflam_heat_data_scale), unique_inflam_genes_ensembl$symbol)]
+# Drop the symbol column
+inflam_heat_data_scale <- as.matrix(inflam_heat_data_scale[,-7])
+
+# Now have prepared heatmap data!
+
+# Prepare the log2FC values as an annotation.
+anno <- as.numeric(format(round(inflam_heat_data_scale[,7],2), nsmall = 2))
+# hb <- HeatmapAnnotation(log2FC = anno_barplot(anno,
+#                     bg_gp = gpar(fill = ifelse(anno < 0, "blue", "red")),
+#                     labels_gp = gpar(fontsize=0)),
+#                     which = "row",
+#                     border = FALSE,
+#                     annotation_name_gp = gpar(fontsize=12),
+#                     annotation_width = unit(80, "mm"))
+
+hb <- HeatmapAnnotation(
+  log2FC = anno_barplot(
+    anno,
+    gp = gpar(fill = ifelse(anno < 0, "blue", "red")),
+    labels_gp = gpar(fontsize = 0),
+    axis_param = list(
+      gp = gpar(fontsize = 12),        # adjust this value to control x-axis label size
+      side = "bottom"                  # ensure axis appears on the correct side
+    ),
+    bar_width = 0.7
+  ),
+  which = "row",
+  border = FALSE,
+  annotation_name_gp = gpar(fontsize = 12),
+  annotation_width = unit(17, "mm"))
+
+# Plot the heatmap
+heatmap <- Heatmap(inflam_heat_data_scale[,1:6],
+                    col = colorRampPalette(c("blue", "white", "red"))(100),
+                    cluster_rows = T,
+                    cluster_columns = F,
+                    clustering_distance_rows = "pearson",
+                    clustering_method_rows = "average",
+                    # clustering_distance_columns = "pearson",
+                    # clustering_method_columns = "average",
+                    row_names_gp = gpar(fontsize=12),
+                    column_names_gp = gpar(fontsize=12),
+                    row_title_gp = gpar(fontsize=7),
+                    row_title_rot = 0,
+                    right_annotation = hb,
+                    row_gap = unit(1, "mm"),
+                    column_gap = unit(0.5, "mm"),
+                    column_title = NULL,
+                    heatmap_legend_param = list(title ="Z-score"),
+                    border=T,
+                    heatmap_height = unit(5, "mm")*nrow(inflam_heat_data_scale),
+                    heatmap_width = unit(100,"mm"))
+
+heatmap
+
+svg("../output/plots/22_inflamm_heatmap.svg", width = 6, height = 19)
+draw(heatmap)
+dev.off()
+```
+
+

@@ -830,6 +830,10 @@ plot_data <- all_res %>%
 plot_data <- plot_data %>%
   mutate(Description = factor(Description, levels = rev(unique(Description))))
 
+# For GO and KEGG only put geneID into symbol column. Gives a column we can grab later
+plot_data <- plot_data %>%
+  mutate(symbol = if_else(Type %in% c("GO","KEGG"), geneID, symbol))
+
 # Convert GeneRatio to numeric
 plot_data <- plot_data %>%
   separate(GeneRatio, into = c("x", "y"), sep = "/") %>%
@@ -892,66 +896,14 @@ ggsave(
 )
 ```
 
-
 ```{r}
 # Genes related to inflammation were extracted from the inflammation-related
 # results from the functional enrichment analyses.
 # This resulted in 53 genes out of 133 total DR from ZEB1 in-silico KO to be 
 # related to inflammation. See data file "10_inflammation_genes_from_enrichmentanalyses.txt"
 
-inflam_genes <- c("Akap12",
-"Arid5a",
-"Atf3",
-"Bhlhe40",
-"Bmpr2",
-"Btg2",
-"Casp4",
-"Ccnl1",
-"Cd200",
-"Cdkn1a",
-"Dusp1",
-"Egr1",
-"Errfi1",
-"Fos",
-"Fosb",
-"Fosl2",
-"Gadd45g",
-"Hbegf",
-"Hmgb2",
-"Ier2",
-"Ier3",
-"Jun",
-"Junb",
-"Jund",
-"Kdm6b",
-"Klf4",
-"Klf6",
-"Klf9",
-"Lifr",
-"Lrrc32",
-"Mcl1",
-"Nfkbia",
-"Nfkbiz",
-"Nr4a1",
-"Nr4a2",
-"Osmr",
-"Pde4b",
-"Pim1",
-"Pnrc1",
-"Ppp1r15a",
-"Prkcg",
-"Sat1",
-"Sgk1",
-"Sik1",
-"Socs3",
-"Spry1",
-"Stat3",
-"Stmn1",
-"Trib1",
-"Uaca",
-"Zbtb20",
-"Zeb1",
-"Zfp36")
+inflam_genes <- unlist(strsplit(plot_data$symbol, "/"))
+unique_inflam_genes <- sort(unique(inflam_genes[inflam_genes != ""]))
 ```
 
 ```{r}
