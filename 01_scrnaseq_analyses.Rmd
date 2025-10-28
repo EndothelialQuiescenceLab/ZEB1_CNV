@@ -162,47 +162,6 @@ ggsave("../output/plots/16_zeb1_violin_lesion_nonlesion.svg", width = 7, height 
 ```
 
 ```{r}
-# Dotplot of EMT/EndoMT, Endothelial and Mesenchymal markers.
-# In p1, the dot.min = 0.01 specifies to only show dots on the plot that have
-# a minimum expression of 1%, as showing dots for 0% expressing I find to be
-# more difficult to interpret. HOWEVER, if you specify dot.min you cant then
-# specify scale.max, which in this case resulted in the max scale to be 75%.
-# Make p2, using scale.max. Then, in a figure editor remove dots that have <1%
-# expressed by using p1 as a guide. BE CAREFUL AND BE ACCURATE.
-# ALSO - the min percent for the DE analysis with FindAllMarkers is 0.01, so
-# this aligns with the dotplot.
-p1 <- DotPlot_scCustom(CNV_data, features = c("Zeb1",
-                                        "Zeb2",
-                                        "Snai1",
-                                        "Snai2",
-                                        "Twist1",
-                                        "Twist2",
-                                        "Pecam1",
-                                        "Cdh5",
-                                        "Tagln",
-                                        "Fn1",
-                                        "Serpine1"),
-                 x_lab_rotate = TRUE, scale.by = "radius", dot.min = 0.01)
-
-p2 <- DotPlot_scCustom(CNV_data, features = c("Zeb1",
-                                        "Zeb2",
-                                        "Snai1",
-                                        "Snai2",
-                                        "Twist1",
-                                        "Twist2",
-                                        "Pecam1",
-                                        "Cdh5",
-                                        "Tagln",
-                                        "Fn1",
-                                        "Serpine1"),
-                 x_lab_rotate = TRUE, scale.by = "radius", scale.max = 100)
-p1
-p2
-
-ggsave("../output/plots/04_endomt_dot.svg", width = 6, height = 5)
-```
-
-```{r}
 # Perform all marker analysis between cell phenotypes (Cluster)
 CNV_data_markers <- FindAllMarkers(CNV_data)
 CNV_data_markers_table <- CNV_data_markers %>%
@@ -213,8 +172,92 @@ write.csv(CNV_data_markers_table, file = "../output/data/00_DEGs_supp.csv")
 ```
 
 ```{r}
-# Perform marker analysis FOR ENDOMT genes between cell phenotypes (Cluster)
-CNV_data_markers_endomt <- FindAllMarkers(CNV_data, features = c("Zeb1",
+# Extracting percent expressing data (proportion of Zeb1+ cells)
+zeb1_proportions <- Percent_Expressing(CNV_data, features = "Zeb1")
+
+# Tidy and rearrange the data.
+zeb1_proportions_tidy <- zeb1_proportions %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column("celltype") %>%
+  mutate(Zeb1 = as.numeric(Zeb1)) %>%
+  arrange(desc(Zeb1))
+
+write.csv(zeb1_proportions_tidy, file = "../output/data/11_zeb1_proportions.csv")
+```
+
+```{r}
+# Make a bar plot of the percent expressing Zeb1.
+
+# Define lesion cell types
+lesion_types <- c("tip.cell", "proliferating", "CNV.transitioning", "immature", "neophalanx")
+
+# Define the desired order for cell types (matching CNV_data$Cluster levels)
+cluster_order <- c("tip.cell",
+                    "neophalanx",
+                    "proliferating",
+                    "immature",
+                    "CNV.transitioning",
+                    "venule",
+                    "vein.shear.stress",
+                    "postcapillary.veins",
+                    "PCV.activated",
+                    "large.veins",
+                    "large.arteries",
+                    "arterioles",
+                    "artery.activated",
+                    "artery.shear.stress",
+                    "capillary.inner.c.c.",
+                    "capillary.outer.c.c.",
+                    "lymphatics",
+                    "lymphatic.like")
+
+# Prepare data
+zeb1_proportions_tidy <- zeb1_proportions_tidy %>%
+  mutate(color_group = ifelse(celltype %in% lesion_types, "Lesion", "Non-lesion")) %>%
+  mutate(celltype = factor(celltype, levels = celltype[order(Zeb1, decreasing = FALSE)]))
+
+# Plot
+ggplot(zeb1_proportions_tidy, aes(x = celltype, y = Zeb1, fill = color_group)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_text(aes(label = sprintf("%.1f%%", Zeb1)),
+            hjust = -0.2, size = 4) +
+  scale_fill_manual(
+    values = c("Lesion" = "#a39ce3", "Non-lesion" = "#cccccc"),
+    name = NULL   # legend title can be added if you prefer
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.y = element_text(size = 12),
+    legend.position = "top",   # change to "right", "bottom", etc. if preferred
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 1),  # <-- black border
+    panel.grid = element_blank(),  # optional: removes gridlines for cleaner look
+    panel.grid.major.x = element_line(color = "grey70", linewidth = 0.3, linetype = "dashed"),  # add major grid lines
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()  # optional: keep minor lines off
+  ) +
+  labs(
+    x = "",
+    y = "Percent expressing Zeb1",
+    title = ""
+  ) +
+  coord_flip() +
+  ylim(0, 100)
+
+# Save the plot
+ggsave(
+  filename = "../output/plots/13_zeb1_proportions_cell_types.svg",
+  width = 5,
+  height = 5,
+  units = "in",
+  dpi = 320
+)
+```
+
+```{r}
+# Generate DE results for the EndoMT AND canonical genes.
+# In order to plot a single dotplot of results rather than 2 separate.
+CNV_data_endomt_canonical <- FindAllMarkers(CNV_data, features = c("Zeb1",
                                         "Zeb2",
                                         "Snai1",
                                         "Snai2",
@@ -224,40 +267,53 @@ CNV_data_markers_endomt <- FindAllMarkers(CNV_data, features = c("Zeb1",
                                         "Cdh5",
                                         "Tagln",
                                         "Fn1",
-                                        "Serpine1"))
-CNV_data_markers_table_endomt <- CNV_data_markers_endomt %>%
+                                        "Serpine1",
+                                        "Tie1",
+                                        "Tek",
+                                        "Angpt2",
+                                        "Kdr",
+                                        "Nrp1",
+                                        "Nrp2",
+                                        "Dll4",
+                                        "Jag1",
+                                        "Esm1",
+                                        "Cxcr4",
+                                        "Foxo1",
+                                        "Myc"))
+
+CNV_data_endomt_canonical_table <- CNV_data_endomt_canonical %>%
   group_by(cluster) %>%
   dplyr::filter(p_val_adj < 0.05)
 
-write.csv(CNV_data_markers_table_endomt, file = "../output/data/01_endomt_DEGs_supp.csv")
+write.csv(CNV_data_endomt_canonical_table, file = "../output/data/03_EndoMT_canonical_DEGs_supp.csv")
 ```
 
 ```{r}
-# Generate a dotplot of log2FC values for ENDOMT genes DE analysis.
-# Custom colour scale for expression/log2FC on plots
-colfunc <- colorRampPalette(c("blue", "gray60", "red"))
+# Reorder the log2FC dotplot of all genes of interest based on the percentage expressing Zeb1.
+
+# Dotplot of endomt and canonical combined.
 
 # Set the order of the clusters
-CNV_data_markers_table_endomt$cluster <- factor(CNV_data_markers_table_endomt$cluster, levels =  c("tip cell",
-                                                        "proliferating",
-                                                        "neophalanx",
-                                                        "immature",
-                                                        "CNV transitioning",
-                                                        "venule",
-                                                        "vein shear stress",
-                                                        "postcapillary veins",
-                                                        "PCV activated",
-                                                        "large veins",
-                                                        "large arteries",
-                                                        "capillary outer c.c.",
-                                                        "capillary inner c.c.",
-                                                        "artery shear stress",
-                                                        "artery activated",
-                                                        "arterioles",
-                                                        "lymphatics",
-                                                        "lymphatic-like"))
+CNV_data_endomt_canonical_table$cluster <- factor(CNV_data_endomt_canonical_table$cluster, levels =  rev(c("tip cell",
+                                                                                                       "proliferating",
+                                                                                                       "artery activated",
+                                                                                                        "neophalanx",
+                                                                                                        "immature",
+                                                                                                        "lymphatic-like",
+                                                                                                        "lymphatics",
+                                                                                                        "artery shear stress",
+                                                                                                        "CNV transitioning",
+                                                                                                        "capillary outer c.c.",
+                                                                                                       "postcapillary veins",
+                                                                                                       "PCV activated",
+                                                                                                       "arterioles",
+                                                                                                       "large arteries",
+                                                                                                       "capillary inner c.c.",
+                                                                                                       "vein shear stress",
+                                                                                                        "large veins",
+                                                                                                       "venule")))
 
-CNV_data_markers_table_endomt$gene <- factor(CNV_data_markers_table_endomt$gene, levels =  c("Zeb1",
+CNV_data_endomt_canonical_table$gene <- factor(CNV_data_endomt_canonical_table$gene, levels =  c("Zeb1",
                                         "Zeb2",
                                         "Snai1",
                                         "Snai2",
@@ -267,19 +323,31 @@ CNV_data_markers_table_endomt$gene <- factor(CNV_data_markers_table_endomt$gene,
                                         "Cdh5",
                                         "Tagln",
                                         "Fn1",
-                                        "Serpine1"))
+                                        "Serpine1",
+                                        "Tie1",
+                                        "Tek",
+                                        "Angpt2",
+                                        "Kdr",
+                                        "Nrp1",
+                                        "Nrp2",
+                                        "Dll4",
+                                        "Jag1",
+                                        "Esm1",
+                                        "Cxcr4",
+                                        "Foxo1",
+                                        "Myc"))
 
 # Change adjusted p_value of 0 to 1e-300 to be logged.
-CNV_data_markers_table_endomt$p_val_adj <- ifelse(CNV_data_markers_table_endomt$p_val_adj == 0, 1e-300, CNV_data_markers_table_endomt$p_val_adj)
+CNV_data_endomt_canonical_table$p_val_adj <- ifelse(CNV_data_endomt_canonical_table$p_val_adj == 0, 1e-300, CNV_data_endomt_canonical_table$p_val_adj)
 
 # Plot the DE analysis data for EndoMT genes.
-ggplot(CNV_data_markers_table_endomt, aes(x = gene, y = cluster, fill = avg_log2FC, size = -log10(p_val_adj))) +
+ggplot(CNV_data_endomt_canonical_table, aes(x = gene, y = cluster, fill = avg_log2FC, size = -log10(p_val_adj))) +
   geom_point(shape = 21, stroke = 0.4, 
              aes(color = ifelse(avg_log2FC > 0, "red", "blue"))) +
   scale_fill_gradient2(
     low = "blue", mid = "white", high = "red",
     name = "log2(Fold change)", midpoint = 0,
-    limits = c(min(CNV_data_markers_table_endomt$avg_log2FC), max(CNV_data_markers_table_endomt$avg_log2FC)),
+    limits = c(min(CNV_data_endomt_canonical_table$avg_log2FC), max(CNV_data_endomt_canonical_table$avg_log2FC)),
     oob = scales::squish
   ) +
   scale_color_identity() +  # Use the specified colors directly for edges
@@ -289,136 +357,7 @@ ggplot(CNV_data_markers_table_endomt, aes(x = gene, y = cluster, fill = avg_log2
   theme(axis.text = element_text(size = 12),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
-ggsave("../output/plots/05_EndoMT_log2FC.svg", width = 6, height = 5, units = "in", dpi = 320)
-```
-
-```{r}
-# Dotplot of Zeb1 and canonical markers.
-# In p3, the dot.min = 0.01 specifies to only show dots on the plot that have
-# a minimum expression of 1%, as showing dots for 0% expressing I find to be
-# more difficult to interpret. HOWEVER, if you specify dot.min you cant then
-# specify scale.max, which in this case resulted in the max scale to be 75%.
-# Make p4, using scale.max. Then, in a figure editor remove dots that have <1%
-# expressed by using p3 as a guide. BE CAREFUL AND BE ACCURATE.
-# ALSO - the min percent for the DE analysis with FindAllMarkers is 0.01, so
-# this aligns with the dotplot.
-p3 <- DotPlot_scCustom(CNV_data, features = c("Zeb1",
-                                              "Tie1",
-                                              "Tek",
-                                              "Angpt2",
-                                              "Kdr",
-                                              "Nrp1",
-                                              "Nrp2",
-                                              "Dll4",
-                                              "Jag1",
-                                              "Esm1",
-                                              "Cxcr4",
-                                              "Foxo1",
-                                              "Myc"),
-                 x_lab_rotate = TRUE, scale.by = "radius", dot.min = 0.01)
-
-p4 <- DotPlot_scCustom(CNV_data, features = c("Zeb1",
-                                              "Tie1",
-                                              "Tek",
-                                              "Angpt2",
-                                              "Kdr",
-                                              "Nrp1",
-                                              "Nrp2",
-                                              "Dll4",
-                                              "Jag1",
-                                              "Esm1",
-                                              "Cxcr4",
-                                              "Foxo1",
-                                              "Myc"),
-                 x_lab_rotate = TRUE, scale.by = "radius", scale.max = 100)
-p3
-p4
-
-ggsave("../output/plots/06_canonical_dot.svg", width = 6.5, height = 5)
-```
-
-```{r}
-# Perform marker analysis FOR CANONICAL GENES ONLY between cell phenotypes (Cluster)
-CNV_data_markers_canonical <- FindAllMarkers(CNV_data, features = c("Zeb1",
-                                              "Tie1",
-                                              "Tek",
-                                              "Angpt2",
-                                              "Kdr",
-                                              "Nrp1",
-                                              "Nrp2",
-                                              "Dll4",
-                                              "Jag1",
-                                              "Esm1",
-                                              "Cxcr4",
-                                              "Foxo1",
-                                              "Myc"))
-CNV_data_markers_table_canonical <- CNV_data_markers_canonical %>%
-  group_by(cluster) %>%
-  dplyr::filter(p_val_adj < 0.05)
-
-write.csv(CNV_data_markers_table_canonical, file = "../output/data/02_canonical_DEGs_supp.csv")
-```
-
-```{r}
-# Generate a dotplot of log2FC values.
-# Custom colour scale for expression/log2FC on plots
-colfunc <- colorRampPalette(c("blue", "gray60", "red"))
-
-# Set the order of the clusters
-CNV_data_markers_table_canonical$cluster <- factor(CNV_data_markers_table_canonical$cluster, levels =  c("tip cell",
-                                                        "proliferating",
-                                                        "neophalanx",
-                                                        "immature",
-                                                        "CNV transitioning",
-                                                        "venule",
-                                                        "vein shear stress",
-                                                        "postcapillary veins",
-                                                        "PCV activated",
-                                                        "large veins",
-                                                        "large arteries",
-                                                        "capillary outer c.c.",
-                                                        "capillary inner c.c.",
-                                                        "artery shear stress",
-                                                        "artery activated",
-                                                        "arterioles",
-                                                        "lymphatics",
-                                                        "lymphatic-like"))
-
-CNV_data_markers_table_canonical$gene <- factor(CNV_data_markers_table_canonical$gene, levels =  c("Zeb1",
-                                              "Tie1",
-                                              "Tek",
-                                              "Angpt2",
-                                              "Kdr",
-                                              "Nrp1",
-                                              "Nrp2",
-                                              "Dll4",
-                                              "Jag1",
-                                              "Esm1",
-                                              "Cxcr4",
-                                              "Foxo1",
-                                              "Myc"))
-
-# Change adjusted p_value of 0 to 1e-300 to be logged.
-CNV_data_markers_table_canonical$p_val_adj <- ifelse(CNV_data_markers_table_canonical$p_val_adj == 0, 1e-300, CNV_data_markers_table_canonical$p_val_adj)
-
-# Plot the DE analysis data for EndoMT genes.
-ggplot(CNV_data_markers_table_canonical, aes(x = gene, y = cluster, fill = avg_log2FC, size = -log10(p_val_adj))) +
-  geom_point(shape = 21, stroke = 0.4, 
-             aes(color = ifelse(avg_log2FC > 0, "red", "blue"))) +
-  scale_fill_gradient2(
-    low = "blue", mid = "white", high = "red",
-    name = "log2(Fold change)", midpoint = 0,
-    limits = c(min(CNV_data_markers_table_canonical$avg_log2FC), max(CNV_data_markers_table_canonical$avg_log2FC)),
-    oob = scales::squish
-  ) +
-  scale_color_identity() +  # Use the specified colors directly for edges
-  scale_size(name = "-log10(p-value)") +
-  ggtitle("") +
-  theme_classic() +
-  theme(axis.text = element_text(size = 12),
-        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-
-ggsave("../output/plots/07_canonical_log2FC.svg", width = 7, height = 5, units = "in", dpi = 320)
+ggsave("../output/plots/23_endomt_canonical_log2FC_reordered.svg", width = 9, height = 5, units = "in", dpi = 320)
 ```
 
 ```{r}
@@ -477,107 +416,71 @@ ggsave("../output/plots/08_endomt_canonical_dot.svg", width = 8.5, height = 5)
 ```
 
 ```{r}
-# Generate DE results for the EndoMT AND canonical genes.
-# In order to plot a single dotplot of results rather than 2 separate.
-CNV_data_endomt_canonical <- FindAllMarkers(CNV_data, features = c("Zeb1",
-                                        "Zeb2",
-                                        "Snai1",
-                                        "Snai2",
-                                        "Twist1",
-                                        "Twist2",
-                                        "Pecam1",
-                                        "Cdh5",
-                                        "Tagln",
-                                        "Fn1",
-                                        "Serpine1",
-                                        "Tie1",
-                                        "Tek",
-                                        "Angpt2",
-                                        "Kdr",
-                                        "Nrp1",
-                                        "Nrp2",
-                                        "Dll4",
-                                        "Jag1",
-                                        "Esm1",
-                                        "Cxcr4",
-                                        "Foxo1",
-                                        "Myc"))
+# Get proportions, but for lesion and non-lesion
+Idents(CNV_data) <- "CNVECs.vs.CECs"
 
-CNV_data_endomt_canonical_table <- CNV_data_endomt_canonical %>%
-  group_by(cluster) %>%
-  dplyr::filter(p_val_adj < 0.05)
+# Extracting percent expressing data (proportion of Zeb1+ cells)
+zeb1_proportions_lesion_nonlesion <- Percent_Expressing(CNV_data, features = "Zeb1")
 
-write.csv(CNV_data_endomt_canonical_table, file = "../output/data/03_EndoMT_canonical_DEGs_supp.csv")
+Idents(CNV_data) <- "Cluster"
+
+# Tidy and rearrange the data.
+zeb1_proportions_lesion_nonlesion_tidy <- zeb1_proportions_lesion_nonlesion %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column("celltype") %>%
+  mutate(Zeb1 = as.numeric(Zeb1)) %>%
+  arrange(desc(Zeb1))
+
+write.csv(zeb1_proportions_lesion_nonlesion_tidy, file = "../output/data/12_zeb1_proportions_lesion_nonlesion.csv")
 ```
 
 ```{r}
-# Dotplot of endomt and canonical combined.
+# Make a bar plot of the percent expressing Zeb1.
 
-# Set the order of the clusters
-CNV_data_endomt_canonical_table$cluster <- factor(CNV_data_endomt_canonical_table$cluster, levels =  c("tip cell",
-                                                        "proliferating",
-                                                        "neophalanx",
-                                                        "immature",
-                                                        "CNV transitioning",
-                                                        "venule",
-                                                        "vein shear stress",
-                                                        "postcapillary veins",
-                                                        "PCV activated",
-                                                        "large veins",
-                                                        "large arteries",
-                                                        "capillary outer c.c.",
-                                                        "capillary inner c.c.",
-                                                        "artery shear stress",
-                                                        "artery activated",
-                                                        "arterioles",
-                                                        "lymphatics",
-                                                        "lymphatic-like"))
+# Define lesion (red) cell types
+lesion_types <- c("CNVECs")
 
-CNV_data_endomt_canonical_table$gene <- factor(CNV_data_endomt_canonical_table$gene, levels =  c("Zeb1",
-                                        "Zeb2",
-                                        "Snai1",
-                                        "Snai2",
-                                        "Twist1",
-                                        "Twist2",
-                                        "Pecam1",
-                                        "Cdh5",
-                                        "Tagln",
-                                        "Fn1",
-                                        "Serpine1",
-                                        "Tie1",
-                                        "Tek",
-                                        "Angpt2",
-                                        "Kdr",
-                                        "Nrp1",
-                                        "Nrp2",
-                                        "Dll4",
-                                        "Jag1",
-                                        "Esm1",
-                                        "Cxcr4",
-                                        "Foxo1",
-                                        "Myc"))
+# Prepare data
+zeb1_proportions_lesion_nonlesion_tidy <- zeb1_proportions_lesion_nonlesion_tidy %>%
+  mutate(color_group = ifelse(celltype %in% lesion_types, "Lesion", "Non-lesion")) %>%
+  mutate(celltype = factor(celltype, levels = celltype[order(Zeb1, decreasing = FALSE)]))
 
-# Change adjusted p_value of 0 to 1e-300 to be logged.
-CNV_data_endomt_canonical_table$p_val_adj <- ifelse(CNV_data_endomt_canonical_table$p_val_adj == 0, 1e-300, CNV_data_endomt_canonical_table$p_val_adj)
-
-# Plot the DE analysis data for EndoMT genes.
-ggplot(CNV_data_endomt_canonical_table, aes(x = gene, y = cluster, fill = avg_log2FC, size = -log10(p_val_adj))) +
-  geom_point(shape = 21, stroke = 0.4, 
-             aes(color = ifelse(avg_log2FC > 0, "red", "blue"))) +
-  scale_fill_gradient2(
-    low = "blue", mid = "white", high = "red",
-    name = "log2(Fold change)", midpoint = 0,
-    limits = c(min(CNV_data_endomt_canonical_table$avg_log2FC), max(CNV_data_endomt_canonical_table$avg_log2FC)),
-    oob = scales::squish
+# Plot
+ggplot(zeb1_proportions_lesion_nonlesion_tidy, aes(x = celltype, y = Zeb1, fill = color_group)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_text(aes(label = sprintf("%.1f%%", Zeb1)),
+            hjust = -0.2, size = 4) +
+  scale_fill_manual(
+    values = c("Lesion" = "#a39ce3", "Non-lesion" = "#cccccc"),
+    name = NULL   # legend title can be added if you prefer
   ) +
-  scale_color_identity() +  # Use the specified colors directly for edges
-  scale_size(name = "-log10(p-value)") +
-  ggtitle("") +
-  theme_classic() +
-  theme(axis.text = element_text(size = 12),
-        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.y = element_text(size = 12),
+    legend.position = "none",
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 1),  # <-- black border
+    panel.grid = element_blank(),  # optional: removes gridlines for cleaner look
+    panel.grid.major.x = element_line(color = "grey70", linewidth = 0.3, linetype = "dashed"),  # add major grid lines
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()  # optional: keep minor lines off
+  ) +
+  labs(
+    x = "",
+    y = "Percent expressing Zeb1",
+    title = ""
+  ) +
+  coord_flip() +
+  ylim(0, 100)
 
-ggsave("../output/plots/09_endomt_canonical_log2FC.svg", width = 9, height = 5, units = "in", dpi = 320)
+# Save the plot
+ggsave(
+  filename = "../output/plots/14_zeb1_proportions_lesion_nonlesion.svg",
+  width = 15,
+  height = 7,
+  units = "cm",
+  dpi = 320
+)
 ```
 
 ```{r}
@@ -680,10 +583,6 @@ ggsave(
   units = "in",
   dpi = 320
 )
-```
-
-```{r}
-# Extract percent expressing information for Zeb1 across phenotypes.
 ```
 
 ```{r}
@@ -902,10 +801,6 @@ plot_data <- all_res %>%
 plot_data <- plot_data %>%
   mutate(Description = factor(Description, levels = rev(unique(Description))))
 
-# For GO and KEGG only put geneID into symbol column. Gives a column we can grab later
-plot_data <- plot_data %>%
-  mutate(symbol = if_else(Type %in% c("GO","KEGG"), geneID, symbol))
-
 # Convert GeneRatio to numeric
 plot_data <- plot_data %>%
   separate(GeneRatio, into = c("x", "y"), sep = "/") %>%
@@ -974,7 +869,7 @@ ggsave(
 # This resulted in 53 genes out of 133 total DR from ZEB1 in-silico KO to be 
 # related to inflammation. See data file "10_inflammation_genes_from_enrichmentanalyses.txt"
 
-inflam_genes <- unlist(strsplit(plot_data$symbol, "/"))
+inflam_genes <- unlist(strsplit(plot_data$geneID, "/"))
 unique_inflam_genes <- sort(unique(inflam_genes[inflam_genes != ""]))
 ```
 
@@ -991,7 +886,7 @@ DR$color <- "darkgrey" # Default color
 DR$color[DR$p.adj < 0.05] <- "#ffada9" # Significant genes
 
 # Add labels only for significant genes of interest. In this case inflammation related.
-DR$label <- ifelse(DR$gene %in% inflam_genes, DR$gene, "")
+DR$label <- ifelse(DR$gene %in% unique_inflam_genes, DR$gene, "")
 
 # Define axis caps
 cap_y <- 30
@@ -1036,279 +931,7 @@ ggsave(
 )
 ```
 
-```{r}
-# Extracting percent expressing data (proportion of Zeb1+ cells)
-zeb1_proportions <- Percent_Expressing(CNV_data, features = "Zeb1")
-
-# Tidy and rearrange the data.
-zeb1_proportions_tidy <- zeb1_proportions %>%
-  t() %>%
-  as.data.frame() %>%
-  rownames_to_column("celltype") %>%
-  mutate(Zeb1 = as.numeric(Zeb1)) %>%
-  arrange(desc(Zeb1))
-
-write.csv(zeb1_proportions_tidy, file = "../output/data/11_zeb1_proportions.csv")
-```
-
-```{r}
-# Make a bar plot of the percent expressing Zeb1.
-
-# Define lesion cell types
-lesion_types <- c("tip.cell", "proliferating", "CNV.transitioning", "immature", "neophalanx")
-
-# Define the desired order for cell types (matching CNV_data$Cluster levels)
-cluster_order <- c("tip.cell",
-                    "neophalanx",
-                    "proliferating",
-                    "immature",
-                    "CNV.transitioning",
-                    "venule",
-                    "vein.shear.stress",
-                    "postcapillary.veins",
-                    "PCV.activated",
-                    "large.veins",
-                    "large.arteries",
-                    "arterioles",
-                    "artery.activated",
-                    "artery.shear.stress",
-                    "capillary.inner.c.c.",
-                    "capillary.outer.c.c.",
-                    "lymphatics",
-                    "lymphatic.like")
-
-# Prepare data
-zeb1_proportions_tidy <- zeb1_proportions_tidy %>%
-  mutate(color_group = ifelse(celltype %in% lesion_types, "Lesion", "Non-lesion")) %>%
-  mutate(celltype = factor(celltype, levels = celltype[order(Zeb1, decreasing = FALSE)]))
-
-# Plot
-ggplot(zeb1_proportions_tidy, aes(x = celltype, y = Zeb1, fill = color_group)) +
-  geom_bar(stat = "identity", color = "black", width = 0.7) +
-  geom_text(aes(label = sprintf("%.1f%%", Zeb1)),
-            hjust = -0.2, size = 4) +
-  scale_fill_manual(
-    values = c("Lesion" = "#a39ce3", "Non-lesion" = "#cccccc"),
-    name = NULL   # legend title can be added if you prefer
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.y = element_text(size = 12),
-    legend.position = "top",   # change to "right", "bottom", etc. if preferred
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 1),  # <-- black border
-    panel.grid = element_blank(),  # optional: removes gridlines for cleaner look
-    panel.grid.major.x = element_line(color = "grey70", linewidth = 0.3, linetype = "dashed"),  # add major grid lines
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor = element_blank()  # optional: keep minor lines off
-  ) +
-  labs(
-    x = "",
-    y = "Percent expressing Zeb1",
-    title = ""
-  ) +
-  coord_flip() +
-  ylim(0, 100)
-
-# Save the plot
-ggsave(
-  filename = "../output/plots/13_zeb1_proportions_cell_types.svg",
-  width = 5,
-  height = 5,
-  units = "in",
-  dpi = 320
-)
-```
-
-```{r}
-# Reorder the log2FC dotplot of all genes of interest based on the percentage expressing Zeb1.
-
-# Dotplot of endomt and canonical combined.
-
-# Set the order of the clusters
-CNV_data_endomt_canonical_table$cluster <- factor(CNV_data_endomt_canonical_table$cluster, levels =  rev(c("tip cell",
-                                                                                                       "proliferating",
-                                                                                                       "artery activated",
-                                                                                                        "neophalanx",
-                                                                                                        "immature",
-                                                                                                        "lymphatic-like",
-                                                                                                        "lymphatics",
-                                                                                                        "artery shear stress",
-                                                                                                        "CNV transitioning",
-                                                                                                        "capillary outer c.c.",
-                                                                                                       "postcapillary veins",
-                                                                                                       "PCV activated",
-                                                                                                       "arterioles",
-                                                                                                       "large arteries",
-                                                                                                       "capillary inner c.c.",
-                                                                                                       "vein shear stress",
-                                                                                                        "large veins",
-                                                                                                       "venule")))
-
-CNV_data_endomt_canonical_table$gene <- factor(CNV_data_endomt_canonical_table$gene, levels =  c("Zeb1",
-                                        "Zeb2",
-                                        "Snai1",
-                                        "Snai2",
-                                        "Twist1",
-                                        "Twist2",
-                                        "Pecam1",
-                                        "Cdh5",
-                                        "Tagln",
-                                        "Fn1",
-                                        "Serpine1",
-                                        "Tie1",
-                                        "Tek",
-                                        "Angpt2",
-                                        "Kdr",
-                                        "Nrp1",
-                                        "Nrp2",
-                                        "Dll4",
-                                        "Jag1",
-                                        "Esm1",
-                                        "Cxcr4",
-                                        "Foxo1",
-                                        "Myc"))
-
-# Change adjusted p_value of 0 to 1e-300 to be logged.
-CNV_data_endomt_canonical_table$p_val_adj <- ifelse(CNV_data_endomt_canonical_table$p_val_adj == 0, 1e-300, CNV_data_endomt_canonical_table$p_val_adj)
-
-# Plot the DE analysis data for EndoMT genes.
-ggplot(CNV_data_endomt_canonical_table, aes(x = gene, y = cluster, fill = avg_log2FC, size = -log10(p_val_adj))) +
-  geom_point(shape = 21, stroke = 0.4, 
-             aes(color = ifelse(avg_log2FC > 0, "red", "blue"))) +
-  scale_fill_gradient2(
-    low = "blue", mid = "white", high = "red",
-    name = "log2(Fold change)", midpoint = 0,
-    limits = c(min(CNV_data_endomt_canonical_table$avg_log2FC), max(CNV_data_endomt_canonical_table$avg_log2FC)),
-    oob = scales::squish
-  ) +
-  scale_color_identity() +  # Use the specified colors directly for edges
-  scale_size(name = "-log10(p-value)") +
-  ggtitle("") +
-  theme_classic() +
-  theme(axis.text = element_text(size = 12),
-        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-
-ggsave("../output/plots/23_endomt_canonical_log2FC_reordered.svg", width = 9, height = 5, units = "in", dpi = 320)
-```
-
-```{r}
-# Expression dotplot of endomt and canonical genes combined.
-DotPlot_scCustom(CNV_data, features = c("Zeb1",
-                                        "Zeb2",
-                                        "Snai1",
-                                        "Snai2",
-                                        "Twist1",
-                                        "Twist2",
-                                        "Pecam1",
-                                        "Cdh5",
-                                        "Tagln",
-                                        "Fn1",
-                                        "Serpine1",
-                                        "Tie1",
-                                        "Tek",
-                                        "Angpt2",
-                                        "Kdr",
-                                        "Nrp1",
-                                        "Nrp2",
-                                        "Dll4",
-                                        "Jag1",
-                                        "Esm1",
-                                        "Cxcr4",
-                                        "Foxo1",
-                                        "Myc"),
-              x_lab_rotate = TRUE, scale.by = "radius", dot.min = 0.01)
-
-DotPlot_scCustom(CNV_data, features = c("Zeb1",
-                                        "Zeb2",
-                                        "Snai1",
-                                        "Snai2",
-                                        "Twist1",
-                                        "Twist2",
-                                        "Pecam1",
-                                        "Cdh5",
-                                        "Tagln",
-                                        "Fn1",
-                                        "Serpine1",
-                                        "Tie1",
-                                        "Tek",
-                                        "Angpt2",
-                                        "Kdr",
-                                        "Nrp1",
-                                        "Nrp2",
-                                        "Dll4",
-                                        "Jag1",
-                                        "Esm1",
-                                        "Cxcr4",
-                                        "Foxo1",
-                                        "Myc"),
-                 x_lab_rotate = TRUE, scale.by = "radius", scale.max = 100)
-
-ggsave("../output/plots/08_endomt_canonical_dot.svg", width = 8.5, height = 5)
-```
-
-
-```{r}
-# Get proportions, but for lesion and non-lesion
-Idents(CNV_data) <- "CNVECs.vs.CECs"
-
-# Extracting percent expressing data (proportion of Zeb1+ cells)
-zeb1_proportions_lesion_nonlesion <- Percent_Expressing(CNV_data, features = "Zeb1")
-
-Idents(CNV_data) <- "Cluster"
-
-# Tidy and rearrange the data.
-zeb1_proportions_lesion_nonlesion_tidy <- zeb1_proportions_lesion_nonlesion %>%
-  t() %>%
-  as.data.frame() %>%
-  rownames_to_column("celltype") %>%
-  mutate(Zeb1 = as.numeric(Zeb1)) %>%
-  arrange(desc(Zeb1))
-
-write.csv(zeb1_proportions_lesion_nonlesion_tidy, file = "../output/data/12_zeb1_proportions_lesion_nonlesion.csv")
-```
-
-```{r}
-# Make a bar plot of the percent expressing Zeb1.
-
-# Define lesion (red) cell types
-lesion_types <- c("CNVECs")
-
-# Prepare data
-zeb1_proportions_lesion_nonlesion_tidy <- zeb1_proportions_lesion_nonlesion_tidy %>%
-  mutate(color_group = ifelse(celltype %in% lesion_types, "Lesion", "Non-lesion")) %>%
-  mutate(celltype = factor(celltype, levels = celltype[order(Zeb1, decreasing = FALSE)]))
-
-# Plot
-ggplot(zeb1_proportions_lesion_nonlesion_tidy, aes(x = celltype, y = Zeb1, fill = color_group)) +
-  geom_bar(stat = "identity", color = "black", width = 0.7) +
-  geom_text(aes(label = sprintf("%.1f%%", Zeb1)),
-            hjust = -0.2, size = 4) +
-  scale_fill_manual(
-    values = c("Lesion" = "#a39ce3", "Non-lesion" = "#cccccc"),
-    name = NULL   # legend title can be added if you prefer
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.y = element_text(size = 12),
-    legend.position = "none"
-  ) +
-  labs(
-    x = "Cell type",
-    y = "Percent expressing Zeb1",
-    title = "Zeb1 expression across CNV cell types"
-  ) +
-  coord_flip() +
-  ylim(0, 100)
-
-# Save the plot
-ggsave(
-  filename = "../output/plots/14_zeb1_proportions_lesion_nonlesion.svg",
-  width = 15,
-  height = 7,
-  units = "cm",
-  dpi = 320
-)
-```
+======================= ZEB1+/ZEB1- ANALYSES ==========================
 
 ```{r}
 # The violin plots suggest that although tip cells have the greatest proportion
