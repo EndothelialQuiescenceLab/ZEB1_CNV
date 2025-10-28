@@ -59,8 +59,42 @@ CNV_data[['tsne_pub']] <- CreateDimReducObject(embeddings = tsne_coordinates_mat
 ```
 
 ```{r}
+# colour pallete
+cluster_colors <- c(
+  # Proliferative / CNV / transitional
+  "tip cell"               = "#4B0082",  # dark purple (indigo)
+  "neophalanx"             = "#b580d1",  # light purple
+  "proliferating"          = "#111111",  # dark grey
+  "immature"               = "#8073ac",  # lavender-blue
+  "CNV transitioning"      = "#7f7f7f",  # red-orange
+
+  # Veins: navy → pale blue
+  "venule"                 = "#053061",  # deep navy
+  "vein shear stress"      = "#2166ac",  # strong blue
+  "postcapillary veins"    = "#4393c3",  # medium blue
+  "PCV activated"          = "#92c5de",  # light blue
+  "large veins"            = "#d1e5f0",  # very pale blue
+
+  # Arteries: burgundy → peach
+  "large arteries"         = "#67001f",  # deep burgundy
+  "arterioles"             = "#b2182b",  # strong red
+  "artery activated"       = "#d6604d",  # coral
+  "artery shear stress"    = "#fddbc7",  # light coral
+
+  # Capillaries
+  "capillary inner c.c."   = "#a6d96a",  # light green
+  "capillary outer c.c."   = "#4dac26",  # green
+
+  # Lymphatics
+  "lymphatics"             = "#a18600",  # darker olive yellow
+  "lymphatic-like"         = "#c9b500"   # golden yellow
+)
+
+```
+
+```{r}
 # T-SNE plot showing the clusters
-DimPlot_scCustom(CNV_data, reduction = "tsne_pub", group.by = "Cluster")
+DimPlot_scCustom(CNV_data, reduction = "tsne_pub", group.by = "Cluster", colors_use = cluster_colors)
 ggsave("../output/plots/00_tsne_clusters.svg", width = 7, height = 5)
 
 # T-SNE plot showing the CNV/healthy groups
@@ -376,6 +410,31 @@ ggsave("../output/plots/07_canonical_log2FC.svg", width = 7, height = 5, units =
 
 ```{r}
 # Expression dotplot of endomt and canonical genes combined.
+DotPlot_scCustom(CNV_data, features = c("Zeb1",
+                                        "Zeb2",
+                                        "Snai1",
+                                        "Snai2",
+                                        "Twist1",
+                                        "Twist2",
+                                        "Pecam1",
+                                        "Cdh5",
+                                        "Tagln",
+                                        "Fn1",
+                                        "Serpine1",
+                                        "Tie1",
+                                        "Tek",
+                                        "Angpt2",
+                                        "Kdr",
+                                        "Nrp1",
+                                        "Nrp2",
+                                        "Dll4",
+                                        "Jag1",
+                                        "Esm1",
+                                        "Cxcr4",
+                                        "Foxo1",
+                                        "Myc"),
+              x_lab_rotate = TRUE, scale.by = "radius", dot.min = 0.01)
+
 DotPlot_scCustom(CNV_data, features = c("Zeb1",
                                         "Zeb2",
                                         "Snai1",
