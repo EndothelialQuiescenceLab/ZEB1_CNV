@@ -161,9 +161,16 @@ pca_output <- pca(rld_mat, metadata = meta)
 Plot the PCA for all samples and cell types in a biplot.
 
 ```{r}
-# Generate the plot.
+# Generate PCA plot
+
+my_cols <- c(
+  "Control" = "#A3C1DA",
+  "KD" = "#F6B892"
+)
+
 pca1_2_huvec <- biplot(pca_output,
                  colby = 'treatment',
+                 colkey = my_cols,
                  legendPosition = 'right',
                  #colLegendTitle = 'Cell Type',
                  shapeLegendTitle = 'Treatment',
@@ -684,4 +691,137 @@ draw(heatmap)
 dev.off()
 ```
 
+```{r}
+# Compare the DR genes from the in-silico Zeb1 KO of CNV scRNA-seq to the DEGs
+# of ZEB1 KD in HUVECs.
+
+# Convert mouse genes to human orthologues.
+# Basic function to convert mouse to human gene names
+convert_mouse_to_human <- function(mouse_symbols,
+                                   ensembl_version = 115,
+                                   host = "https://sep2025.archive.ensembl.org",
+                                   unique_only = TRUE) {
+  # Connect once
+  if (!is.null(ensembl_version)) {
+    human <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl", version = ensembl_version)
+    mouse <- useEnsembl("ensembl", dataset = "mmusculus_gene_ensembl", version = ensembl_version)
+  } else if (!is.null(host)) {
+    human <- useMart("ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl", host = host)
+    mouse <- useMart("ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl", host = host)
+  } else {
+    human <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl")
+    mouse <- useEnsembl("ensembl", dataset = "mmusculus_gene_ensembl")
+  }
+
+  # Map using MGI -> HGNC
+  mm2hs <- getLDS(
+    attributes = c("mgi_symbol"),
+    filters = "mgi_symbol",
+    values = mouse_symbols,
+    mart = mouse,
+    attributesL = c("hgnc_symbol"),
+    martL = human,
+    uniqueRows = TRUE
+  )
+
+  colnames(mm2hs) <- c("mouse_mgi_symbol", "human_hgnc_symbol")
+  mm2hs <- subset(mm2hs, nzchar(human_hgnc_symbol))  # drop blanks
+
+  if (unique_only) {
+    # Just a unique vector of human genes
+    unique(mm2hs$human_hgnc_symbol)
+  } else {
+    # Full mapping data.frame
+    mm2hs
+  }
+}
+
+# Get CNV in-silico KO data
+CNV_KO_genes <- read.csv("../output/data/06_cnv_lesion_zeb1KO_DRGs.csv") |>
+  dplyr::filter(p.adj < 0.05)
+
+# Extract the gene names (must be MGI symbols)
+mouse_DR <- CNV_KO_genes$gene
+
+# Use the function
+human_DR_vec <- convert_mouse_to_human(mouse_DR, unique_only = TRUE)
+```
+
+```{r}
+# As biomart isnt working use https://biit.cs.ut.ee/gprofiler/orth for now.
+
+DR_KO_orths <- c("ZFP46", "ZFP36", "ZFAND5", "ZEB1", "ZBTB20", "UBC", "UACA", "TYMS", "TUBA1B", "TSPAN13", "TSHZ2", "TRIB1", "TOP2A", "TOB2", "TNS1", "TM4SF1", "TK1", "TIPIN", "TIMP3", "TCF4", "STMN1", "STAT3", "SPRY1", "SPC24", "SPAG9", "SOX7", "SOCS3", "SLC6A6", "SLC38A2", "SIK1", "SGK1", "SERTAD1", "SAT1", "RRM1", "RPA2", "RND1", "PTPRB", "PRKCG", "PPP1R15A", "PPP1R10", "POLD2", "PNRC1", "PIM3", "PIM1", "PDE4B", "PCF11", "OSMR", "NR4A2", "NR4A1", "NOCT", "NFKBIZ", "NFKBIA", "NEDD9", "NEAT1", "MALAT1", "IIGP1", "4931406P16RIK", "CASP4", "ZCCHC6", "HMGN2", "HMGN2", "MYLIP", "MIDN", "MCM7", "MCM6", "MCM5", "MCL1", "MAST4", "MAFK", "LRRC32", "LMNB1", "LIG1", "LIFR", "KLF9", "KLF7", "KLF6", "KLF4", "KDM6B", "JUND", "JUNB", "JUN", "JMJD1C", "ITPKB", "INCENP", "IER5L", "IER3", "IER2", "HMGB2", "HBEGF", "GYPC", "GMNN", "GADD45G", "FRYL", "FOSL2", "FOSB", "FOS", "FEN1", "ERRFI1", "EPAS1", "EGR1", "EFNB2", "EBF1", "DUT", "DUSP1", "DNAJC9", "DLL4", "DLC1", "CYYR1", "CSRNP1", "CKS2", "CKS1B", "CDKN1A", "CDK1", "CDCA8", "CDC42EP3", "CD200", "CCNL1", "BTG2", "BRD2", "BMPR2", "BIRC5", "BHLHE40", "BACH1", "ATF3", "ARID5B", "ARID5A", "ARHGAP31", "APOLD1", "AKAP12", "ADGRF5", "ADAMTS9", "ADAMTS4", "ADAMTS1", "ABLIM1")
+
+matches <- intersect(DR_KO_orths, padj_df$symbol)
+matches
+
+```
+
+```{r}
+# ---- pick your 4 overlap genes ----
+overlap_genes <- matches
+
+# ---- get DE table as data.frame ----
+padj_df <- as.data.frame(padj_DE)
+
+# keep only those genes that exist in padj_df
+present <- overlap_genes[overlap_genes %in% padj_df$symbol]
+missing <- setdiff(overlap_genes, present)
+if (length(missing)) message("Missing from padj_DE: ", paste(missing, collapse = ", "))
+
+# subset DE rows in the *order of overlap_genes*
+sel_df <- padj_df[match(present, padj_df$symbol), , drop = FALSE]
+rownames(sel_df) <- rownames(padj_df)[match(present, padj_df$symbol)]
+
+# ---- pull rlog matrix rows for these genes ----
+rld_sub <- rld_mat[rownames(sel_df), , drop = FALSE]
+
+# scale rows (Z-score)
+rld_scaled <- t(scale(t(as.matrix(rld_sub)), center = TRUE, scale = TRUE))
+rownames(rld_scaled) <- sel_df$symbol  # show symbols as rownames
+
+# ---- log2FC annotation vector (kept separate; no brittle column indexing) ----
+lfc <- sel_df$log2FoldChange
+names(lfc) <- sel_df$symbol
+
+hb <- HeatmapAnnotation(
+  log2FC = anno_barplot(
+    lfc,
+    gp = gpar(fill = ifelse(lfc < 0, "blue", "red")),
+    labels_gp = gpar(fontsize = 0),
+    axis_param = list(gp = gpar(fontsize = 10), side = "bottom"),
+    bar_width = 0.7
+  ),
+  which = "row",
+  border = FALSE,
+  annotation_name_gp = gpar(fontsize = 11),
+  annotation_width = unit(16, "mm")
+)
+
+# ---- heatmap ----
+ht <- Heatmap(
+  rld_scaled,
+  name = "Z-score",
+  col = colorRampPalette(c("blue", "white", "red"))(100),
+  cluster_rows = TRUE,          # keep specified order
+  cluster_columns = FALSE,       # keep sample order
+  row_names_gp = gpar(fontsize = 11),
+  column_names_gp = gpar(fontsize = 11),
+  right_annotation = hb,
+  row_gap = unit(1, "mm"),
+  column_gap = unit(0.5, "mm"),
+  border = TRUE,
+  heatmap_height = unit(15, "mm") * nrow(rld_scaled),
+  heatmap_width  = unit(75, "mm")
+)
+
+# draw to screen
+ht
+
+# save as SVG
+svg("../output/plots/overlap_genes_heatmap.svg", width = 6, height = max(4, 5 + 0.6*nrow(rld_scaled)))
+draw(ht)
+dev.off()
+
+```
 
