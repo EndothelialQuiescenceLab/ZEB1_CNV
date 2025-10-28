@@ -192,26 +192,6 @@ write.csv(zeb1_proportions_tidy, file = "../output/data/11_zeb1_proportions.csv"
 # Define lesion cell types
 lesion_types <- c("tip.cell", "proliferating", "CNV.transitioning", "immature", "neophalanx")
 
-# Define the desired order for cell types (matching CNV_data$Cluster levels)
-cluster_order <- c("tip.cell",
-                    "neophalanx",
-                    "proliferating",
-                    "immature",
-                    "CNV.transitioning",
-                    "venule",
-                    "vein.shear.stress",
-                    "postcapillary.veins",
-                    "PCV.activated",
-                    "large.veins",
-                    "large.arteries",
-                    "arterioles",
-                    "artery.activated",
-                    "artery.shear.stress",
-                    "capillary.inner.c.c.",
-                    "capillary.outer.c.c.",
-                    "lymphatics",
-                    "lymphatic.like")
-
 # Prepare data
 zeb1_proportions_tidy <- zeb1_proportions_tidy %>%
   mutate(color_group = ifelse(celltype %in% lesion_types, "Lesion", "Non-lesion")) %>%
@@ -361,6 +341,28 @@ ggsave("../output/plots/23_endomt_canonical_log2FC_reordered.svg", width = 9, he
 ```
 
 ```{r}
+# Change the order that cell phenotypes are shown in plots.
+Idents(CNV_data) <- "Cluster"
+
+CNV_data$Cluster <- factor(CNV_data$Cluster, levels = rev(c("tip cell",
+                                                             "proliferating",
+                                                             "artery activated",
+                                                              "neophalanx",
+                                                              "immature",
+                                                              "lymphatic-like",
+                                                              "lymphatics",
+                                                              "artery shear stress",
+                                                              "CNV transitioning",
+                                                              "capillary outer c.c.",
+                                                             "postcapillary veins",
+                                                             "PCV activated",
+                                                             "arterioles",
+                                                             "large arteries",
+                                                             "capillary inner c.c.",
+                                                             "vein shear stress",
+                                                              "large veins",
+                                                             "venule")))
+
 # Expression dotplot of endomt and canonical genes combined.
 DotPlot_scCustom(CNV_data, features = c("Zeb1",
                                         "Zeb2",
@@ -826,7 +828,7 @@ min_log10qvalue<- min(plot_data$log10qvalue, na.rm = TRUE)
 max_log10qvalue <- max(plot_data$log10qvalue, na.rm = TRUE)
 
 # Generate automatic breaks for colour scale (5 equally spaced)
-breaks_q <- pretty(c(min_log10qvalue, max_log10qvalue), n = 5)
+breaks_q <- pretty(c(1, 5), n = 5)
 
 # Make dotplot
 p <- ggplot(
@@ -837,7 +839,7 @@ p <- ggplot(
   scale_color_gradient(high = "#e06663", 
                      low =  "#327eba", 
                      name = "-log10(qvalue)",
-                     limits = c(-log10(0.05), max_log10qvalue),
+                     limits = c(-log10(0.05), 5),
                      oob = scales::squish,
                      breaks = breaks_q
                      ) +
@@ -856,7 +858,7 @@ print(p)
 ggsave(
   plot = p,
   filename = "../output/plots/17_zeb1_KO_funenrich_inflamm.svg",
-  width = 25,
+  width = 20,
   height = 10,
   units = "cm",
   dpi = 320
@@ -884,9 +886,18 @@ DR$p.adj <- ifelse(DR$p.adj == 0, 1e-300, DR$p.adj)
 # Create a color category column for significant genes
 DR$color <- "darkgrey" # Default color
 DR$color[DR$p.adj < 0.05] <- "#ffada9" # Significant genes
+DR$color[DR$gene %in% unique_inflam_genes] <- "#2E6F40"
 
-# Add labels only for significant genes of interest. In this case inflammation related.
-DR$label <- ifelse(DR$gene %in% unique_inflam_genes, DR$gene, "")
+# Identify the top 6 inflammation-related genes by -log10(adjusted p-value)
+top5_inflam_genes <- DR |>
+  dplyr::filter(gene %in% unique_inflam_genes) |>
+  dplyr::arrange(desc(-log10(p.adj))) |>
+  dplyr::slice_head(n = 6) |>
+  dplyr::pull(gene)
+
+# Add labels only for those top 6 inflammation-related genes
+# Top 6 to avoid ZEB1.
+DR$label <- ifelse(DR$gene %in% top5_inflam_genes, DR$gene, "")
 
 # Define axis caps
 cap_y <- 30
@@ -901,7 +912,7 @@ other_points <- DR[!(DR$gene == "Zeb1"),]
 # Plot
 ggplot() +
   # Plot other points first
-  geom_point(data = other_points, aes(x = plot_x, y = plot_y, color = color), size = 1, alpha = 0.5) +
+  geom_point(data = other_points, aes(x = plot_x, y = plot_y, color = color), size = 2, alpha = 0.5) +
   # Plot lightgreen and darkgreen points on top
   # Highlight Zeb1 as a red triangle
   geom_point(data = zeb1_point, aes(x = plot_x, y = plot_y), color = "red", shape = 2, size = 2) +
@@ -924,8 +935,8 @@ ggplot() +
 # Save the plot
 ggsave(
   filename = "../output/plots/12_zeb1_KO_inflammation_genes.svg",
-  width = 15,
-  height = 30,
+  width = 10,
+  height = 15,
   units = "cm",
   dpi = 320
 )
