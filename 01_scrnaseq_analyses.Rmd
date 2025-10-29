@@ -64,38 +64,38 @@ CNV_data[['tsne_pub']] <- CreateDimReducObject(embeddings = tsne_coordinates_mat
 ```{r}
 # colour pallete
 cluster_colors <- c(
-  # Proliferative / CNV / transitional
-  "tip cell"               = "#4B0082",  # dark purple (indigo)
-  "neophalanx"             = "#b580d1",  # light purple
-  "proliferating"          = "#111111",  # dark grey
-  "immature"               = "#8073ac",  # lavender-blue
-  "CNV transitioning"      = "#7f7f7f",  # red-orange
+  # Lesion
+  "tip cell"               = "#4B0082",
+  "neophalanx"             = "#b580d1",
+  "proliferating"          = "#111111", 
+  "immature"               = "#8073ac", 
+  "CNV transitioning"      = "#7f7f7f",  
 
-  # Veins: navy → pale blue
-  "venule"                 = "#053061",  # deep navy
-  "vein shear stress"      = "#2166ac",  # strong blue
-  "postcapillary veins"    = "#4393c3",  # medium blue
-  "PCV activated"          = "#92c5de",  # light blue
-  "large veins"            = "#d1e5f0",  # very pale blue
+  # Veins
+  "venule"                 = "#053061",
+  "vein shear stress"      = "#2166ac",
+  "postcapillary veins"    = "#4393c3",
+  "PCV activated"          = "#92c5de",
+  "large veins"            = "#d1e5f0",
 
-  # Arteries: burgundy → peach
-  "large arteries"         = "#67001f",  # deep burgundy
-  "arterioles"             = "#b2182b",  # strong red
-  "artery activated"       = "#d6604d",  # coral
-  "artery shear stress"    = "#fddbc7",  # light coral
+  # Arteries
+  "large arteries"         = "#67001f",
+  "arterioles"             = "#b2182b",
+  "artery activated"       = "#d6604d",
+  "artery shear stress"    = "#fddbc7",
 
   # Capillaries
-  "capillary inner c.c."   = "#a6d96a",  # light green
-  "capillary outer c.c."   = "#4dac26",  # green
+  "capillary inner c.c."   = "#a6d96a",
+  "capillary outer c.c."   = "#4dac26",
 
   # Lymphatics
-  "lymphatics"             = "#a18600",  # darker olive yellow
-  "lymphatic-like"         = "#c9b500"   # golden yellow
+  "lymphatics"             = "#a18600",
+  "lymphatic-like"         = "#c9b500" 
 )
 
 condition_colors <- c(
-  "CNV" = "#1b9e77",   # teal-green
-  "healthy" = "#b3b3b3" # medium grey
+  "CNV" = "#1b9e77",
+  "healthy" = "#b3b3b3" 
 )
 
 lesion_colors <- c(
@@ -155,12 +155,12 @@ CNV_data$Cluster <- factor(CNV_data$Cluster, levels = c("tip cell",
 ```{r}
 # Violin plot of Zeb1 across cell phenotypes.
 VlnPlot_scCustom(CNV_data, features = "Zeb1", group.by = "Cluster", colors_use = cluster_colors) & NoLegend()
-ggsave("../output/plots/15_zeb1_violin_phenotypes.svg", width = 7, height = 5)
+ggsave("../output/plots/04_zeb1_violin_phenotypes.svg", width = 7, height = 5)
 
 # Violin plot of Zeb1 across lesion and non-lesion.
 CNV_data$CNVECs.vs.CECs <- factor(CNV_data$CNVECs.vs.CECs, levels = c("CECs", "CNVECs"))
 VlnPlot_scCustom(CNV_data, features = "Zeb1", group.by = "CNVECs.vs.CECs", colors_use = lesion_colors) & NoLegend()
-ggsave("../output/plots/16_zeb1_violin_lesion_nonlesion.svg", width = 7, height = 5)
+ggsave("../output/plots/05_zeb1_violin_lesion_nonlesion.svg", width = 7, height = 5)
 ```
 
 ```{r}
@@ -185,7 +185,7 @@ zeb1_proportions_tidy <- zeb1_proportions %>%
   mutate(Zeb1 = as.numeric(Zeb1)) %>%
   arrange(desc(Zeb1))
 
-write.csv(zeb1_proportions_tidy, file = "../output/data/11_zeb1_proportions.csv")
+write.csv(zeb1_proportions_tidy, file = "../output/data/01_zeb1_proportions.csv")
 ```
 
 ```{r}
@@ -228,7 +228,7 @@ ggplot(zeb1_proportions_tidy, aes(x = celltype, y = Zeb1, fill = color_group)) +
 
 # Save the plot
 ggsave(
-  filename = "../output/plots/13_zeb1_proportions_cell_types.svg",
+  filename = "../output/plots/06_zeb1_proportions_cell_types.svg",
   width = 5,
   height = 5,
   units = "in",
@@ -267,7 +267,7 @@ CNV_data_endomt_canonical_table <- CNV_data_endomt_canonical %>%
   group_by(cluster) %>%
   dplyr::filter(p_val_adj < 0.05)
 
-write.csv(CNV_data_endomt_canonical_table, file = "../output/data/03_EndoMT_canonical_DEGs_supp.csv")
+write.csv(CNV_data_endomt_canonical_table, file = "../output/data/02_EndoMT_canonical_DEGs_supp.csv")
 ```
 
 ```{r}
@@ -339,7 +339,7 @@ ggplot(CNV_data_endomt_canonical_table, aes(x = gene, y = cluster, fill = avg_lo
   theme(axis.text = element_text(size = 12),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
-ggsave("../output/plots/23_endomt_canonical_log2FC_reordered.svg", width = 9, height = 5, units = "in", dpi = 320)
+ggsave("../output/plots/07_endomt_canonical_log2FC_reordered.svg", width = 9, height = 5, units = "in", dpi = 320)
 ```
 
 ```{r}
@@ -436,7 +436,7 @@ zeb1_proportions_lesion_nonlesion_tidy <- zeb1_proportions_lesion_nonlesion %>%
   mutate(Zeb1 = as.numeric(Zeb1)) %>%
   arrange(desc(Zeb1))
 
-write.csv(zeb1_proportions_lesion_nonlesion_tidy, file = "../output/data/12_zeb1_proportions_lesion_nonlesion.csv")
+write.csv(zeb1_proportions_lesion_nonlesion_tidy, file = "../output/data/03_zeb1_proportions_lesion_nonlesion.csv")
 ```
 
 ```{r}
@@ -479,7 +479,7 @@ ggplot(zeb1_proportions_lesion_nonlesion_tidy, aes(x = celltype, y = Zeb1, fill 
 
 # Save the plot
 ggsave(
-  filename = "../output/plots/14_zeb1_proportions_lesion_nonlesion.svg",
+  filename = "../output/plots/09_zeb1_proportions_lesion_nonlesion.svg",
   width = 15,
   height = 7,
   units = "cm",
@@ -792,6 +792,10 @@ selected_terms <- c("HALLMARK_TNFA_SIGNALING_VIA_NFKB",
                     "cellular response to interleukin-1 (GO:0071347)",
                     "inflammatory response to wounding (GO:0090594)",
                     "response to interleukin-1 (GO:0070555)",
+                    "positive regulation of leukocyte activation (GO:0002696)",
+                    "regulation of leukocyte cell-cell adhesion (GO:1903037)",
+                    "macrophage activation (GO:0042116)",
+                    "negative regulation of macrophage activation (GO:0043031)",
                     "JAK-STAT signaling pathway (mmu04630)",
                     "IL-17 signaling pathway (mmu04657)",
                     "MAPK signaling pathway (mmu04010)",
@@ -859,9 +863,9 @@ p <- ggplot(
 print(p)
 ggsave(
   plot = p,
-  filename = "../output/plots/17_zeb1_KO_funenrich_inflamm.svg",
+  filename = "../output/plots/12_zeb1_KO_funenrich_inflamm.svg",
   width = 20,
-  height = 10,
+  height = 12,
   units = "cm",
   dpi = 320
 )
@@ -936,7 +940,7 @@ ggplot() +
 
 # Save the plot
 ggsave(
-  filename = "../output/plots/12_zeb1_KO_inflammation_genes.svg",
+  filename = "../output/plots/13_zeb1_KO_inflammation_genes.svg",
   width = 10,
   height = 15,
   units = "cm",
@@ -945,72 +949,12 @@ ggsave(
 ```
 
 ```{r}
-DR$log2FC <- log2(DR$FC)
-DR$p.adj <- ifelse(DR$p.adj == 0, 1e-300, DR$p.adj)
-
-# Create a color category column for significant genes
-DR$color <- "darkgrey" # Default color
-DR$color[DR$p.adj < 0.05] <- "#ffada9" # Significant genes
-DR$color[DR$gene %in% unique_inflam_genes] <- "#2E6F40"
-
-# Label all inflammation-related genes
-DR$label <- ifelse(DR$gene %in% unique_inflam_genes, DR$gene, "")
-
-# Define axis caps
-cap_y <- 30
-cap_x <- 8
-DR$plot_y <- pmin(-log10(DR$p.adj), cap_y)
-DR$plot_x <- pmin(abs(DR$log2FC), cap_x) * sign(DR$log2FC)
-
-# Separate data for Zeb1, green points, and other points
-zeb1_point <- DR[DR$gene == "Zeb1", ]
-other_points <- DR[!(DR$gene == "Zeb1"),]
-
-# Plot (switched axes)
-ggplot() +
-  # Plot other points first
-  geom_point(data = other_points, aes(x = plot_y, y = plot_x, color = color), size = 2, alpha = 0.5) +
-  # Highlight Zeb1 as a red triangle
-  geom_point(data = zeb1_point, aes(x = plot_y, y = plot_x), color = "red", shape = 2, size = 2) +
-  # Add gene labels for inflammation-related genes
-  geom_text_repel(
-    data = other_points[other_points$label != "", ],
-    aes(x = plot_y, y = plot_x, label = label),
-    size = 4, color = "black", max.overlaps = 100, box.padding = 0.4,
-    min.segment.length = 0,
-    segment.size = 0.2
-  ) +
-  scale_color_identity() +
-  labs(
-    x = "-log10(Adjusted p-value)",
-    y = "log2(Fold Change)",
-    title = ""
-  ) +
-  theme_classic()
-
-# Save the plot
-ggsave(
-  filename = "../output/plots/ROTATED_zeb1_KO_inflammation_genes_switched_axes.svg",
-  width = 29,
-  height = 10,
-  units = "cm",
-  dpi = 320
-)
-```
-
-```{r}
-# Try plotting the in-silico KO genes as a heatmap
+# Heatmap of Zeb1 insilico KO genes for all EC phenotypes.
 
 # Ensure genes are in the dataset
 genes_present <- intersect(DR_sig$gene, rownames(CNV_data))
 length(genes_present)  # check how many are available
 
-# Scale the data.
-CNV_data_scaled <- ScaleData(CNV_data, verbose = FALSE)
-```
-
-```{r}
-# Heatmap of Zeb1 insilico KO genes for all EC phenotypes.
 # Compute average expression per condition and return a new seurat object.
 avg_exp <- AverageExpression(
   CNV_data,
@@ -1040,7 +984,7 @@ insilicoKO_heatmap <- Heatmap(
                         cluster_columns = TRUE,
                       )
 
-svg("../output/plots/INSILICOKO_heatmap_all_cells.svg", width = 8, height = 25)
+svg("../output/plots/14_insilicoKO_heat_allcells.svg", width = 8, height = 25)
 draw(insilicoKO_heatmap)
 dev.off()
 ```
@@ -1077,7 +1021,7 @@ insilicoKO_heatmap <- Heatmap(
                         cluster_columns = TRUE,
                       )
 
-svg("../output/plots/INSILICOKO_heatmap_lesion.svg", width = 5, height = 25)
+svg("../output/plots/15_insilicoKO_heat_lesioncells.svg", width = 5, height = 25)
 draw(insilicoKO_heatmap)
 dev.off()
 ```
@@ -1099,10 +1043,10 @@ avg_exp_lesion_inflam <- AverageExpression(
 expr_mat_lesion_inflam <- GetAssayData(avg_exp_lesion_inflam, slot = "scale.data")[unique_inflam_genes, ]
 
 # Transpose so clusters are rows and genes are columns
-# expr_mat_t <- t(expr_mat)
+expr_mat_lesion_inflam_t <- t(expr_mat_lesion_inflam)
 
 insilicoKO_heatmap <- Heatmap(
-                        expr_mat_lesion_inflam,
+                        expr_mat_lesion_inflam_t,
                         name = "Expression (Z-score)",
                         show_row_names = TRUE,
                         show_column_names = TRUE,
@@ -1114,10 +1058,284 @@ insilicoKO_heatmap <- Heatmap(
                         cluster_columns = TRUE,
                       )
 
-svg("../output/plots/INSILICOKO_heatmap_lesion_inflam.svg", width = 5, height = 15)
+# svg("../output/plots/16_insilicoKO_heat_lesioncells_inflam.svg", width = 5, height = 15)
+# draw(insilicoKO_heatmap)
+# dev.off()
+
+svg("../output/plots/16_insilicoKO_heat_lesioncells_inflam.svg", width = 20, height = 3)
 draw(insilicoKO_heatmap)
 dev.off()
 ```
+
+```{r}
+# Dotplot of combined functional enrichment results for angiogenesis-related results
+selected_terms <- c("artery morphogenesis (GO:0048844)",
+                    "cell migration involved in sprouting angiogenesis (GO:0002042)",
+                    "endothelial cell proliferation (GO:0001935)",
+                    "endothelium development (GO:0003158)",
+                    "lung vasculature development (GO:0060426)",
+                    "negative regulation of angiogenesis (GO:0016525)",
+                    "blood vessel remodeling (GO:0001974)",
+                    "blood vessel endothelial cell migration (GO:0043534)",
+                    "regulation of Notch signaling pathway (GO:0008593)"
+                    )
+
+# Filter selected pathways by Description
+plot_data_angio <- all_res %>%
+  filter(Description %in% selected_terms)
+
+# Create readable labels
+plot_data_angio <- plot_data_angio %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# Convert GeneRatio to numeric
+plot_data_angio <- plot_data_angio %>%
+  separate(GeneRatio, into = c("x", "y"), sep = "/") %>%
+  mutate(GeneRatioNumeric = as.numeric(x) / as.numeric(y))
+
+# Ensure key columns are numeric
+plot_data_angio <- plot_data_angio %>%
+  mutate(
+    qvalue = as.numeric(qvalue),
+    Count    = as.numeric(Count))
+
+# Order the y axis by significance for each database
+plot_data_angio <- plot_data_angio %>%
+  arrange(qvalue, Description) %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# Add log10-transformed qvalues
+plot_data_angio <- plot_data_angio %>%
+  mutate(log10qvalue = -log10(qvalue))
+
+# Compute min and max for colour scale
+min_log10qvalue<- min(plot_data_angio$log10qvalue, na.rm = TRUE)
+max_log10qvalue <- max(plot_data_angio$log10qvalue, na.rm = TRUE)
+
+# Generate automatic breaks for colour scale (5 equally spaced)
+breaks_q <- pretty(c(1, 5), n = 5)
+
+# Make dotplot
+p <- ggplot(
+  plot_data_angio,
+  aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)
+) +
+  geom_point() +
+  scale_color_gradient(high = "#e06663", 
+                     low =  "#327eba", 
+                     name = "-log10(qvalue)",
+                     limits = c(-log10(0.05), 5),
+                     oob = scales::squish,
+                     breaks = breaks_q
+                     ) +
+  guides(color = guide_colorbar(reverse = TRUE)) +  # red = more significant at top of legend
+  scale_size_continuous(breaks = c(5,10,15,20,25,30), range=c(3,10)) +
+  labs(x = "Gene Ratio", y = NULL, title = "") +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 10)
+  )
+
+print(p)
+ggsave(
+  plot = p,
+  filename = "../output/plots/17_zeb1_KO_funenrich_angio.svg",
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 320
+)
+```
+
+```{r}
+# Genes related to angiogenesis were extracted from the angiogenesis-related
+# results from the functional enrichment analyses.
+# This resulted in 53 genes out of 133 total DR from ZEB1 in-silico KO to be 
+# related to inflammation.
+
+angio_genes <- unlist(strsplit(plot_data_angio$geneID, "/"))
+unique_angio_genes <- sort(unique(angio_genes[angio_genes != ""]))
+```
+
+```{r}
+# Just plot angio-related genes in lesion
+
+# Compute average expression per condition and return a new seurat object.
+avg_exp_lesion_angio <- AverageExpression(
+  lesion_cells,
+  features = unique_angio_genes,
+  group.by = "Cluster",
+  assays = "RNA",
+  return.seurat = TRUE,
+  slot = "data"  # or "data" if you prefer raw log-normalized
+)
+
+# Extract expression matrix of scaled average counts.
+expr_mat_lesion_angio <- GetAssayData(avg_exp_lesion_angio, slot = "scale.data")[unique_angio_genes, ]
+
+# Transpose so clusters are rows and genes are columns
+expr_mat_lesion_angio_t <- t(expr_mat_lesion_angio)
+
+insilicoKO_heatmap <- Heatmap(
+                        expr_mat_lesion_angio_t,
+                        name = "Expression (Z-score)",
+                        show_row_names = TRUE,
+                        show_column_names = TRUE,
+                        column_names_gp = gpar(fontsize = 15),
+                        row_names_gp = gpar(fontsize = 15),
+                        column_names_rot = 45,
+                        col = colorRamp2(c(-2, 0, 2), c("navy", "white", "firebrick3")),
+                        cluster_rows = TRUE,
+                        cluster_columns = TRUE,
+                      )
+
+# svg("../output/plots/18_insilicoKO_heat_lesioncells_angio.svg", width = 5, height = 8)
+# draw(insilicoKO_heatmap)
+# dev.off()
+
+svg("../output/plots/18_insilicoKO_heat_lesioncells_angio.svg", width = 10, height = 3)
+draw(insilicoKO_heatmap)
+dev.off()
+```
+
+```{r}
+# ---------- Packages ----------
+library(tidyverse)
+library(patchwork)
+
+# ---------- 1) Define the term sets ----------
+inflam_terms <- c(
+  "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+  "regulation of inflammatory response (GO:0050727)",
+  "cellular response to interleukin-17 (GO:0097398)",
+  "response to interleukin-17 (GO:0097396)",
+  "transforming growth factor beta receptor superfamily signaling pathway (GO:0141091)",
+  "cellular response to transforming growth factor beta stimulus (GO:0071560)",
+  "regulation of tumor necrosis factor production (GO:0032680)",
+  "response to transforming growth factor beta (GO:0071559)",
+  "inflammatory response to antigenic stimulus (GO:0002437)",
+  "cellular response to interleukin-1 (GO:0071347)",
+  "inflammatory response to wounding (GO:0090594)",
+  "response to interleukin-1 (GO:0070555)",
+  "positive regulation of leukocyte activation (GO:0002696)",
+  "regulation of leukocyte cell-cell adhesion (GO:1903037)",
+  "macrophage activation (GO:0042116)",
+  "negative regulation of macrophage activation (GO:0043031)",
+  "JAK-STAT signaling pathway (mmu04630)",
+  "IL-17 signaling pathway (mmu04657)",
+  "MAPK signaling pathway (mmu04010)",
+  "TNF signaling pathway (mmu04668)"
+)
+
+angio_terms <- c(
+  "artery morphogenesis (GO:0048844)",
+  "cell migration involved in sprouting angiogenesis (GO:0002042)",
+  "endothelial cell proliferation (GO:0001935)",
+  "endothelium development (GO:0003158)",
+  "lung vasculature development (GO:0060426)",
+  "negative regulation of angiogenesis (GO:0016525)",
+  "blood vessel remodeling (GO:0001974)",
+  "blood vessel endothelial cell migration (GO:0043534)",
+  "regulation of Notch signaling pathway (GO:0008593)"
+)
+
+# ---------- 2) Prepare plotting data ----------
+prep_plot_df <- function(all_res, selected_terms) {
+  all_res %>%
+    filter(Description %in% selected_terms) %>%
+    separate(GeneRatio, into = c("x", "y"), sep = "/", remove = FALSE) %>%
+    mutate(
+      GeneRatioNumeric = as.numeric(x) / as.numeric(y),
+      qvalue = as.numeric(qvalue),
+      Count  = as.numeric(Count),
+      log10qvalue = -log10(qvalue)
+    ) %>%
+    arrange(qvalue, Description) %>%
+    mutate(Description = factor(Description, levels = rev(unique(Description))))
+}
+
+df_inflam <- prep_plot_df(all_res, inflam_terms)
+df_angio  <- prep_plot_df(all_res, angio_terms)
+
+# ---------- 3) Shared scales ----------
+x_max <- max(c(df_inflam$GeneRatioNumeric, df_angio$GeneRatioNumeric), na.rm = TRUE)
+
+color_limits <- c(-log10(0.05), 5)
+breaks_q     <- pretty(c(1, 5), n = 5)
+
+all_counts <- c(df_inflam$Count, df_angio$Count)
+size_limits <- c(min(all_counts, na.rm = TRUE), max(all_counts, na.rm = TRUE))
+size_breaks <- pretty(all_counts, n = 5)
+size_range  <- c(3, 10)
+
+# ---------- 4) Dotplot function ----------
+make_dotplot <- function(df, panel_title) {
+  ggplot(df, aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)) +
+    geom_point() +
+    scale_x_continuous(limits = c(0, x_max), expand = expansion(mult = c(0, 0.05))) +
+    scale_color_gradient(
+      high = "#e06663", low = "#327eba",
+      name = "-log10(qvalue)",
+      limits = color_limits, oob = scales::squish,
+      breaks = breaks_q
+    ) +
+    scale_size_continuous(
+      name = "Count", limits = size_limits,
+      breaks = size_breaks, range = size_range
+    ) +
+    guides(
+      color = guide_colorbar(reverse = TRUE),
+      size  = guide_legend(order = 1)
+    ) +
+    labs(x = "Gene Ratio", y = NULL, title = panel_title) +
+    theme_bw() +
+    theme(
+      plot.title = element_text(hjust = 0, face = "bold", size = 12),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.y = element_blank(),
+      axis.text.y = element_text(size = 10, hjust = 0),  # keep readable
+      axis.text.x = element_text(size = 10),
+      legend.title = element_text(size = 10),
+      legend.text  = element_text(size = 9),
+      axis.ticks.y.right = element_line(),
+      axis.text.y.right = element_text(size = 10),
+      axis.text.y.left = element_blank(),
+      axis.ticks.y.left = element_blank(),
+      axis.title.y = element_blank(),
+      axis.title.y.right = element_blank(),
+      axis.line.y.right = element_line(),
+      axis.line.y.left = element_blank()
+    ) +
+    scale_y_discrete(position = "right")
+}
+
+# ---------- 5) Build combined plot ----------
+p_inflam <- make_dotplot(df_inflam, "Inflammation")
+p_angio  <- make_dotplot(df_angio,  "Angiogenesis")
+
+h_inflam <- max(1, length(levels(df_inflam$Description)))
+h_angio  <- max(1, length(levels(df_angio$Description)))
+
+combined <- (p_inflam / p_angio) +
+  plot_layout(heights = c(h_inflam, h_angio), guides = "collect") &
+  theme(legend.position = "left")
+
+# ---------- 6) Output ----------
+print(combined)
+
+ggsave(
+  plot = combined,
+  filename = "../output/plots/19_combined_funenrich_inflamm_angio_rightY_leftLegend.svg",
+  width  = 22,
+  height = 20,
+  units  = "cm",
+  dpi    = 320
+)
+```
+
 
 ======================= ZEB1+/ZEB1- ANALYSES ==========================
 
