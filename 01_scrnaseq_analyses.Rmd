@@ -23,6 +23,8 @@ library(org.Mm.eg.db)
 library(scTenifoldKnk)
 library(msigdbr)
 library(viridis)
+library(ComplexHeatmap)
+library(colorRamp2)
 ```
 
 ```{r}
@@ -940,6 +942,181 @@ ggsave(
   units = "cm",
   dpi = 320
 )
+```
+
+```{r}
+DR$log2FC <- log2(DR$FC)
+DR$p.adj <- ifelse(DR$p.adj == 0, 1e-300, DR$p.adj)
+
+# Create a color category column for significant genes
+DR$color <- "darkgrey" # Default color
+DR$color[DR$p.adj < 0.05] <- "#ffada9" # Significant genes
+DR$color[DR$gene %in% unique_inflam_genes] <- "#2E6F40"
+
+# Label all inflammation-related genes
+DR$label <- ifelse(DR$gene %in% unique_inflam_genes, DR$gene, "")
+
+# Define axis caps
+cap_y <- 30
+cap_x <- 8
+DR$plot_y <- pmin(-log10(DR$p.adj), cap_y)
+DR$plot_x <- pmin(abs(DR$log2FC), cap_x) * sign(DR$log2FC)
+
+# Separate data for Zeb1, green points, and other points
+zeb1_point <- DR[DR$gene == "Zeb1", ]
+other_points <- DR[!(DR$gene == "Zeb1"),]
+
+# Plot (switched axes)
+ggplot() +
+  # Plot other points first
+  geom_point(data = other_points, aes(x = plot_y, y = plot_x, color = color), size = 2, alpha = 0.5) +
+  # Highlight Zeb1 as a red triangle
+  geom_point(data = zeb1_point, aes(x = plot_y, y = plot_x), color = "red", shape = 2, size = 2) +
+  # Add gene labels for inflammation-related genes
+  geom_text_repel(
+    data = other_points[other_points$label != "", ],
+    aes(x = plot_y, y = plot_x, label = label),
+    size = 4, color = "black", max.overlaps = 100, box.padding = 0.4,
+    min.segment.length = 0,
+    segment.size = 0.2
+  ) +
+  scale_color_identity() +
+  labs(
+    x = "-log10(Adjusted p-value)",
+    y = "log2(Fold Change)",
+    title = ""
+  ) +
+  theme_classic()
+
+# Save the plot
+ggsave(
+  filename = "../output/plots/ROTATED_zeb1_KO_inflammation_genes_switched_axes.svg",
+  width = 29,
+  height = 10,
+  units = "cm",
+  dpi = 320
+)
+```
+
+```{r}
+# Try plotting the in-silico KO genes as a heatmap
+
+# Ensure genes are in the dataset
+genes_present <- intersect(DR_sig$gene, rownames(CNV_data))
+length(genes_present)  # check how many are available
+
+# Scale the data.
+CNV_data_scaled <- ScaleData(CNV_data, verbose = FALSE)
+```
+
+```{r}
+# Heatmap of Zeb1 insilico KO genes for all EC phenotypes.
+# Compute average expression per condition and return a new seurat object.
+avg_exp <- AverageExpression(
+  CNV_data,
+  features = genes_present,
+  group.by = "Cluster",
+  assays = "RNA",
+  return.seurat = TRUE,
+  slot = "data"  # or "data" if you prefer raw log-normalized
+)
+
+# Extract expression matrix of scaled average counts.
+expr_mat <- GetAssayData(avg_exp, slot = "scale.data")[genes_present, ]
+
+# Transpose so clusters are rows and genes are columns
+# expr_mat_t <- t(expr_mat)
+
+insilicoKO_heatmap <- Heatmap(
+                        expr_mat,
+                        name = "Expression (Z-score)",
+                        show_row_names = TRUE,
+                        show_column_names = TRUE,
+                        column_names_gp = gpar(fontsize = 12),
+                        row_names_gp = gpar(fontsize = 12),
+                        column_names_rot = 45,
+                        col = colorRamp2(c(-2, 0, 2), c("navy", "white", "firebrick3")),
+                        cluster_rows = TRUE,
+                        cluster_columns = TRUE,
+                      )
+
+svg("../output/plots/INSILICOKO_heatmap_all_cells.svg", width = 8, height = 25)
+draw(insilicoKO_heatmap)
+dev.off()
+```
+
+```{r}
+# Same as previous heatmap but for lesion ECs only.
+
+# Compute average expression per condition and return a new seurat object.
+avg_exp_lesion <- AverageExpression(
+  lesion_cells,
+  features = genes_present,
+  group.by = "Cluster",
+  assays = "RNA",
+  return.seurat = TRUE,
+  slot = "data"  # or "data" if you prefer raw log-normalized
+)
+
+# Extract expression matrix of scaled average counts.
+expr_mat_lesion <- GetAssayData(avg_exp_lesion, slot = "scale.data")[genes_present, ]
+
+# Transpose so clusters are rows and genes are columns
+# expr_mat_t <- t(expr_mat)
+
+insilicoKO_heatmap <- Heatmap(
+                        expr_mat_lesion,
+                        name = "Expression (Z-score)",
+                        show_row_names = TRUE,
+                        show_column_names = TRUE,
+                        column_names_gp = gpar(fontsize = 12),
+                        row_names_gp = gpar(fontsize = 12),
+                        column_names_rot = 45,
+                        col = colorRamp2(c(-2, 0, 2), c("navy", "white", "firebrick3")),
+                        cluster_rows = TRUE,
+                        cluster_columns = TRUE,
+                      )
+
+svg("../output/plots/INSILICOKO_heatmap_lesion.svg", width = 5, height = 25)
+draw(insilicoKO_heatmap)
+dev.off()
+```
+
+```{r}
+# Just plot inflam-related genes in lesion
+
+# Compute average expression per condition and return a new seurat object.
+avg_exp_lesion_inflam <- AverageExpression(
+  lesion_cells,
+  features = unique_inflam_genes,
+  group.by = "Cluster",
+  assays = "RNA",
+  return.seurat = TRUE,
+  slot = "data"  # or "data" if you prefer raw log-normalized
+)
+
+# Extract expression matrix of scaled average counts.
+expr_mat_lesion_inflam <- GetAssayData(avg_exp_lesion_inflam, slot = "scale.data")[unique_inflam_genes, ]
+
+# Transpose so clusters are rows and genes are columns
+# expr_mat_t <- t(expr_mat)
+
+insilicoKO_heatmap <- Heatmap(
+                        expr_mat_lesion_inflam,
+                        name = "Expression (Z-score)",
+                        show_row_names = TRUE,
+                        show_column_names = TRUE,
+                        column_names_gp = gpar(fontsize = 15),
+                        row_names_gp = gpar(fontsize = 15),
+                        column_names_rot = 45,
+                        col = colorRamp2(c(-2, 0, 2), c("navy", "white", "firebrick3")),
+                        cluster_rows = TRUE,
+                        cluster_columns = TRUE,
+                      )
+
+svg("../output/plots/INSILICOKO_heatmap_lesion_inflam.svg", width = 5, height = 15)
+draw(insilicoKO_heatmap)
+dev.off()
 ```
 
 ======================= ZEB1+/ZEB1- ANALYSES ==========================
