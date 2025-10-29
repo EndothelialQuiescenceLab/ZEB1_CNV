@@ -342,8 +342,6 @@ ggsave("../output/plots/23_endomt_canonical_log2FC_reordered.svg", width = 9, he
 
 ```{r}
 # Change the order that cell phenotypes are shown in plots.
-Idents(CNV_data) <- "Cluster"
-
 CNV_data$Cluster <- factor(CNV_data$Cluster, levels = rev(c("tip cell",
                                                              "proliferating",
                                                              "artery activated",
@@ -362,6 +360,8 @@ CNV_data$Cluster <- factor(CNV_data$Cluster, levels = rev(c("tip cell",
                                                              "vein shear stress",
                                                               "large veins",
                                                              "venule")))
+
+Idents(CNV_data) <- "Cluster"
 
 # Expression dotplot of endomt and canonical genes combined.
 DotPlot_scCustom(CNV_data, features = c("Zeb1",
