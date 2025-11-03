@@ -473,7 +473,7 @@ write.csv(deg_hallmarks, file = "../output/data/26_HUVEC_zeb1_DE_HALLMARKS.csv")
 # Dotplot of combined functional enrichment results for inflammation-related results
 # First, combine the data together.
 
-# ============= Prepare the data =============
+# Prepare the data
 GO <- as.data.frame(simpleHUVECZEBego_padj@result)
 KEGG <- as.data.frame(ekeggZeb1DE)
 HALL <- as.data.frame(deg_hallmarks)
@@ -571,7 +571,7 @@ breaks_q <- pretty(c(min_log10qvalue, max_log10qvalue), n = 5)
 
 write.csv(plot_data, file = "../output/data/plot_data.csv")
 
-# ============= Make dotplot =============
+# Make dotplot
 p <- ggplot(
   plot_data,
   aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)
@@ -692,6 +692,379 @@ dev.off()
 ```
 
 ```{r}
+# Dotplot of combined functional enrichment results for angiogenesis-related results
+selected_terms <- c("endothelium development (GO:0003158)",
+"endothelial cell differentiation (GO:0045446)",
+"angiogenesis involved in wound healing (GO:0060055)",
+"regulation of angiogenesis (GO:0045765)",
+"regulation of endothelial cell migration (GO:0010594)",
+"morphogenesis of a branching structure (GO:0001763)",
+"endothelial cell apoptotic process (GO:0072577)",
+"negative regulation of endothelial cell apoptotic process (GO:2000352)",
+"endothelial cell migration (GO:0043542)",
+"extracellular matrix organization (GO:0030198)",
+"negative regulation of cell adhesion (GO:0007162)",
+"cell-cell adhesion via plasma-membrane adhesion molecules (GO:0098742)",
+"protein localization to cell junction (GO:1902414)",
+"cell adhesion mediated by integrin (GO:0033627)",
+"vascular endothelial growth factor receptor signaling pathway (GO:0048010)",
+"regulation of morphogenesis of a branching structure (GO:0060688)",
+"ECM-receptor interaction (hsa04512)",
+"Tight junction (Tight junction)",
+"Focal adhesion (hsa04510)",
+"HALLMARK_APICAL_JUNCTION")
+
+# Filter selected pathways by Description
+plot_data_angio <- all_res %>%
+  filter(Description %in% selected_terms)
+
+# Create readable labels
+plot_data_angio <- plot_data_angio %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# For GO and KEGG only put geneID into symbol column. Gives a column we can grab later
+plot_data_angio <- plot_data_angio %>%
+  mutate(symbol = if_else(Type %in% c("GO","KEGG"), geneID, symbol))
+
+# Convert GeneRatio to numeric
+plot_data_angio <- plot_data_angio %>%
+  separate(GeneRatio, into = c("x", "y"), sep = "/") %>%
+  mutate(GeneRatioNumeric = as.numeric(x) / as.numeric(y))
+
+# Ensure key columns are numeric
+plot_data_angio <- plot_data_angio %>%
+  mutate(
+    qvalue = as.numeric(qvalue),
+    Count    = as.numeric(Count))
+
+# Order the y axis by significance for each database
+plot_data_angio <- plot_data_angio %>%
+  arrange(qvalue, Description) %>%
+  mutate(Description = factor(Description, levels = rev(unique(Description))))
+
+# Add log10-transformed qvalues
+plot_data_angio <- plot_data_angio %>%
+  mutate(log10qvalue = -log10(qvalue))
+
+# Compute min and max for colour scale
+min_log10qvalue<- min(plot_data_angio$log10qvalue, na.rm = TRUE)
+max_log10qvalue <- max(plot_data_angio$log10qvalue, na.rm = TRUE)
+
+# Generate automatic breaks for colour scale (5 equally spaced)
+breaks_q <- pretty(c(min_log10qvalue, max_log10qvalue), n = 5)
+
+write.csv(plot_data_angio, file = "../output/data/plot_data_angio.csv")
+
+# ============= Make dotplot =============
+p <- ggplot(
+  plot_data_angio,
+  aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)
+) +
+  geom_point() +
+  scale_color_gradient(high = "#e06663", 
+                       low =  "#327eba", 
+                       name = "-log10(qvalue)",
+                       limits = c(-log10(0.05), max_log10qvalue),
+                       oob = scales::squish,
+                       breaks = breaks_q
+                       ) +
+  guides(color = guide_colorbar(reverse = TRUE)) +  # red = more significant at top of legend
+  scale_size_continuous(breaks = c(5,10,15,20,25,30), range=c(2,8)) +
+  labs(x = "Gene Ratio", y = NULL, title = "") +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 10)
+  )
+
+print(p)
+ggsave(
+  plot = p,
+  filename = "../output/plots/23_HUVEC_zeb1_KD_funenrich_angio.svg",
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 320
+)
+```
+
+```{r}
+# Heatmap of angiogenesis related genes.
+# From the terms used in the dotplot, we have 93 DEGs related to angiogenesis
+
+# Extract the unique angiogenesis related genes.
+angio_genes <- unlist(strsplit(plot_data_angio$symbol, "/"))
+unique_angio_genes <- sort(unique(angio_genes[angio_genes != ""]))
+
+# Get dataframe of padj_DE results.
+padj_df <- as.data.frame(padj_DE)
+
+# Extract DE results for the angio related genes only.
+unique_angio_genes_ensembl <- padj_df[match(unique_angio_genes, padj_df$symbol),]
+
+# Get the regularized log transformed counts matrix that is required for the heatmap.
+angio_heat_data <- as.data.frame(rld_mat[match(rownames(unique_angio_genes_ensembl), rownames(rld_mat)),])
+# Scale the data.
+angio_heat_data_scale <- as.data.frame(t(scale(t(angio_heat_data), center=T, scale=T)))
+
+# Convert ensembl IDs to symbols in the dataframe.
+angio_heat_data_scale$symbol <- unique_angio_genes_ensembl$symbol[match(rownames(angio_heat_data_scale), rownames(unique_angio_genes_ensembl))]
+# Make the rownames symbols not ensembl.
+rownames(angio_heat_data_scale) <- angio_heat_data_scale$symbol
+# Add log2FC values
+angio_heat_data_scale$log2FC <- unique_angio_genes_ensembl$log2FoldChange[match(rownames(angio_heat_data_scale), unique_angio_genes_ensembl$symbol)]
+# Drop the symbol column
+angio_heat_data_scale <- as.matrix(angio_heat_data_scale[,-7])
+
+# Now have prepared heatmap data!
+
+# Prepare the log2FC values as an annotation.
+anno <- as.numeric(format(round(angio_heat_data_scale[,7],2), nsmall = 2))
+# hb <- HeatmapAnnotation(log2FC = anno_barplot(anno,
+#                     bg_gp = gpar(fill = ifelse(anno < 0, "blue", "red")),
+#                     labels_gp = gpar(fontsize=0)),
+#                     which = "row",
+#                     border = FALSE,
+#                     annotation_name_gp = gpar(fontsize=12),
+#                     annotation_width = unit(80, "mm"))
+
+hb <- HeatmapAnnotation(
+  log2FC = anno_barplot(
+    anno,
+    gp = gpar(fill = ifelse(anno < 0, "blue", "red")),
+    labels_gp = gpar(fontsize = 0),
+    axis_param = list(
+      gp = gpar(fontsize = 12),        # adjust this value to control x-axis label size
+      side = "bottom"                  # ensure axis appears on the correct side
+    ),
+    bar_width = 0.7
+  ),
+  which = "row",
+  border = FALSE,
+  annotation_name_gp = gpar(fontsize = 12),
+  annotation_width = unit(17, "mm"))
+
+# Plot the heatmap
+angio_heatmap <- Heatmap(angio_heat_data_scale[,1:6],
+                    col = colorRampPalette(c("blue", "white", "red"))(100),
+                    cluster_rows = T,
+                    cluster_columns = F,
+                    clustering_distance_rows = "pearson",
+                    clustering_method_rows = "average",
+                    # clustering_distance_columns = "pearson",
+                    # clustering_method_columns = "average",
+                    row_names_gp = gpar(fontsize=12),
+                    column_names_gp = gpar(fontsize=12),
+                    row_title_gp = gpar(fontsize=7),
+                    row_title_rot = 0,
+                    right_annotation = hb,
+                    row_gap = unit(1, "mm"),
+                    column_gap = unit(0.5, "mm"),
+                    column_title = NULL,
+                    heatmap_legend_param = list(title ="Z-score"),
+                    border=T,
+                    heatmap_height = unit(5, "mm")*nrow(angio_heat_data_scale),
+                    heatmap_width = unit(100,"mm"))
+
+angio_heatmap
+
+svg("../output/plots/24_angio_heatmap.svg", width = 6, height = 19)
+draw(angio_heatmap)
+dev.off()
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+
+### 1. Build all_res as in your code ---------------------------
+
+GO   <- as.data.frame(simpleHUVECZEBego_padj@result)
+KEGG <- as.data.frame(ekeggZeb1DE)
+HALL <- as.data.frame(deg_hallmarks)
+
+GO$Type   <- "GO"
+KEGG$Type <- "KEGG"
+HALL$Type <- "HALLMARKS"
+
+# Concatenate ID and Description for GO and KEGG (as in your code)
+GO <- GO %>%
+  mutate(Description = paste0(Description, " ", "(", ID, ")"))
+
+KEGG <- KEGG %>%
+  mutate(Description = paste0(Description, " ", "(", ID, ")")) %>%
+  select(-category, -subcategory)
+
+all_res <- bind_rows(GO, KEGG, HALL)
+
+### 2. Term sets (from your existing code) ---------------------
+
+inflam_terms <- c(
+  "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+  "HALLMARK_INTERFERON_ALPHA_RESPONSE",
+  "HALLMARK_INFLAMMATORY_RESPONSE",
+  "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+  "TNF signaling pathway (hsa04668)",
+  "Cytokine-cytokine receptor interaction (hsa04060)",
+  "IL-17 signaling pathway (hsa04657)",
+  "NF-kappa B signaling pathway (hsa04064)",
+  "Chemokine signaling pathway (hsa04062)",
+  "Leukocyte transendothelial migration (hsa04670)",
+  "AGE-RAGE signaling pathway in diabetic complications (hsa04933)",
+  "NOD-like receptor signaling pathway (hsa04621)",
+  "cell chemotaxis (GO:0060326)",
+  "cellular response to tumor necrosis factor (GO:0071356)",
+  "chemokine production (GO:0032602)",
+  "chemotaxis (GO:0006935)",
+  "cytokine-mediated signaling pathway (GO:0019221)",
+  "interferon-mediated signaling pathway (GO:0140888)",
+  "leukocyte cell-cell adhesion (GO:0007159)",
+  "leukocyte migration (GO:0050900)",
+  "leukocyte proliferation (GO:0070661)",
+  "negative regulation of interleukin-1 production (GO:0032692)",
+  "neutrophil activation (GO:0042119)",
+  "regulation of chemokine production (GO:0032642)",
+  "regulation of chemotaxis (GO:0050920)",
+  "regulation of leukocyte migration (GO:0002685)",
+  "regulation of leukocyte proliferation (GO:0070663)",
+  "regulation of response to cytokine stimulus (GO:0060759)",
+  "regulation of response to wounding (GO:1903034)",
+  "response to chemokine (GO:1990868)",
+  "response to interferon-alpha (GO:0035455)",
+  "response to interferon-beta (GO:0035456)",
+  "response to tumor necrosis factor (GO:0034612)",
+  "response to type II interferon (GO:0034341)",
+  "T cell activation (GO:0042110)",
+  "T cell activation involved in immune response (GO:0002286)",
+  "wound healing (GO:0042060)"
+)
+
+angio_terms <- c(
+  "endothelium development (GO:0003158)",
+  "endothelial cell differentiation (GO:0045446)",
+  "angiogenesis involved in wound healing (GO:0060055)",
+  "regulation of angiogenesis (GO:0045765)",
+  "regulation of endothelial cell migration (GO:0010594)",
+  "morphogenesis of a branching structure (GO:0001763)",
+  "endothelial cell apoptotic process (GO:0072577)",
+  "negative regulation of endothelial cell apoptotic process (GO:2000352)",
+  "endothelial cell migration (GO:0043542)",
+  "extracellular matrix organization (GO:0030198)",
+  "negative regulation of cell adhesion (GO:0007162)",
+  "cell-cell adhesion via plasma-membrane adhesion molecules (GO:0098742)",
+  "protein localization to cell junction (GO:1902414)",
+  "cell adhesion mediated by integrin (GO:0033627)",
+  "vascular endothelial growth factor receptor signaling pathway (GO:0048010)",
+  "regulation of morphogenesis of a branching structure (GO:0060688)",
+  "ECM-receptor interaction (hsa04512)",
+  "Tight junction (Tight junction)",
+  "Focal adhesion (hsa04510)",
+  "HALLMARK_APICAL_JUNCTION"
+)
+
+### 3. Helper to prep the data (adapted from your first block) ----
+
+prep_plot_df <- function(all_res, selected_terms) {
+  all_res %>%
+    filter(Description %in% selected_terms) %>%
+    separate(GeneRatio, into = c("x", "y"), sep = "/", remove = FALSE) %>%
+    mutate(
+      GeneRatioNumeric = as.numeric(x) / as.numeric(y),
+      qvalue           = as.numeric(qvalue),
+      Count            = as.numeric(Count),
+      log10qvalue      = -log10(qvalue)
+    ) %>%
+    arrange(qvalue, Description) %>%
+    mutate(Description = factor(Description, levels = rev(unique(Description))))
+}
+
+df_inflam <- prep_plot_df(all_res, inflam_terms)
+df_angio  <- prep_plot_df(all_res, angio_terms)
+
+### 4. Shared scales (x, colour, size) ----------------------------
+
+# Shared x-range
+x_max <- max(c(df_inflam$GeneRatioNumeric, df_angio$GeneRatioNumeric), na.rm = TRUE)
+
+# Colour scale limits and breaks
+all_log10 <- c(df_inflam$log10qvalue, df_angio$log10qvalue)
+color_limits <- c(-log10(0.05), max(all_log10, na.rm = TRUE))
+breaks_q     <- pretty(color_limits, n = 5)
+
+# Size scale limits and breaks (or hard-code if you prefer 5,10,15,20,25,30)
+all_counts  <- c(df_inflam$Count, df_angio$Count)
+size_limits <- c(min(all_counts, na.rm = TRUE), max(all_counts, na.rm = TRUE))
+size_breaks <- pretty(all_counts, n = 5)
+size_range  <- c(2, 8)
+
+### 5. Function to make one dotplot panel -------------------------
+
+make_dotplot <- function(df, panel_title) {
+  ggplot(df, aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)) +
+    geom_point() +
+    scale_x_continuous(limits = c(0, x_max), expand = expansion(mult = c(0, 0.05))) +
+    scale_color_gradient(
+      high   = "#e06663",
+      low    = "#327eba",
+      name   = "-log10(qvalue)",
+      limits = color_limits,
+      oob    = scales::squish,
+      breaks = breaks_q
+    ) +
+    scale_size_continuous(
+      name   = "Count",
+      limits = size_limits,
+      breaks = size_breaks,
+      range  = size_range
+    ) +
+    guides(
+      color = guide_colorbar(reverse = TRUE),
+      size  = guide_legend(order = 1)
+    ) +
+    labs(x = "Gene Ratio", y = NULL, title = panel_title) +
+    theme_bw() +
+    theme(
+      plot.title        = element_text(hjust = 0, face = "bold", size = 12),
+      panel.grid.minor  = element_blank(),
+      panel.grid.major.y = element_blank(),
+      axis.text.y       = element_text(size = 10),
+      axis.text.x       = element_text(size = 10),
+      legend.title      = element_text(size = 10),
+      legend.text       = element_text(size = 9)
+    )
+}
+
+### 6. Build and combine the plots -------------------------------
+
+p_inflam <- make_dotplot(df_inflam, "Inflammation")
+p_angio  <- make_dotplot(df_angio,  "Angiogenesis")
+
+# Use number of terms to weight panel heights
+h_inflam <- max(1, length(levels(df_inflam$Description)))
+h_angio  <- max(1, length(levels(df_angio$Description)))
+
+combined <- (p_inflam / p_angio) +
+  plot_layout(heights = c(h_inflam, h_angio), guides = "collect") &
+  theme(legend.position = "left")
+
+print(combined)
+
+ggsave(
+  plot     = combined,
+  filename = "../output/plots/HUVEC_ZEB1KD_funenrich_inflamm_angio_combined.svg",
+  width    = 22,
+  height   = 26,
+  units    = "cm",
+  dpi      = 320
+)
+```
+
+
+```{r}
 # Compare the DR genes from the in-silico Zeb1 KO of CNV scRNA-seq to the DEGs
 # of ZEB1 KD in HUVECs.
 
@@ -746,6 +1119,7 @@ mouse_DR <- CNV_KO_genes$gene
 # Use the function
 human_DR_vec <- convert_mouse_to_human(mouse_DR, unique_only = TRUE)
 ```
+
 
 ```{r}
 # As biomart isnt working use https://biit.cs.ut.ee/gprofiler/orth for now.

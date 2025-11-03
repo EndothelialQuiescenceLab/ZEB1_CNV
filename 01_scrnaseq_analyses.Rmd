@@ -25,6 +25,7 @@ library(msigdbr)
 library(viridis)
 library(ComplexHeatmap)
 library(colorRamp2)
+library(patchwork)
 ```
 
 ```{r}
@@ -1202,11 +1203,8 @@ dev.off()
 ```
 
 ```{r}
-# ---------- Packages ----------
-library(tidyverse)
-library(patchwork)
+# Enrich results:
 
-# ---------- 1) Define the term sets ----------
 inflam_terms <- c(
   "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
   "regulation of inflammatory response (GO:0050727)",
@@ -1242,7 +1240,7 @@ angio_terms <- c(
   "regulation of Notch signaling pathway (GO:0008593)"
 )
 
-# ---------- 2) Prepare plotting data ----------
+# Prepare the data for the plot.
 prep_plot_df <- function(all_res, selected_terms) {
   all_res %>%
     filter(Description %in% selected_terms) %>%
@@ -1260,7 +1258,7 @@ prep_plot_df <- function(all_res, selected_terms) {
 df_inflam <- prep_plot_df(all_res, inflam_terms)
 df_angio  <- prep_plot_df(all_res, angio_terms)
 
-# ---------- 3) Shared scales ----------
+# Generate the shared scales.
 x_max <- max(c(df_inflam$GeneRatioNumeric, df_angio$GeneRatioNumeric), na.rm = TRUE)
 
 color_limits <- c(-log10(0.05), 5)
@@ -1271,7 +1269,7 @@ size_limits <- c(min(all_counts, na.rm = TRUE), max(all_counts, na.rm = TRUE))
 size_breaks <- pretty(all_counts, n = 5)
 size_range  <- c(3, 10)
 
-# ---------- 4) Dotplot function ----------
+# Create a function to make the dotplot.
 make_dotplot <- function(df, panel_title) {
   ggplot(df, aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)) +
     geom_point() +
@@ -1312,7 +1310,7 @@ make_dotplot <- function(df, panel_title) {
     scale_y_discrete(position = "right")
 }
 
-# ---------- 5) Build combined plot ----------
+# Build the combined dotplot.
 p_inflam <- make_dotplot(df_inflam, "Inflammation")
 p_angio  <- make_dotplot(df_angio,  "Angiogenesis")
 
@@ -1323,7 +1321,7 @@ combined <- (p_inflam / p_angio) +
   plot_layout(heights = c(h_inflam, h_angio), guides = "collect") &
   theme(legend.position = "left")
 
-# ---------- 6) Output ----------
+# Save.
 print(combined)
 
 ggsave(
