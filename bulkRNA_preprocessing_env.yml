@@ -7,8 +7,8 @@ channels:
 dependencies:
   - python=3.10
   - fastqc=0.11.9
-  - star=2.7.11b
-  - subread=2.1.1  # includes featureCounts
+  - star=2.7.9
+  - subread=2.0.0  # includes featureCounts
   - pip
   - pip:
-    - cutadapt==5.2
+    - cutadapt==4.4
