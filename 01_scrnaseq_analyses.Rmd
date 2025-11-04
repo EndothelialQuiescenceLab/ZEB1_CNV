@@ -603,25 +603,25 @@ saveRDS(lesion_cells,"../output/Robjects/01_lesion_cells_subset.rds")
 ```
 
 ```{r}
-# Run ZEB1 KO - NOTE! Best do this on 128Gb RAM computer. Requires power.
-print("Making matrix")
-exp.matrix <- lesion_cells[["RNA"]]$counts
-exp.matrix <- exp.matrix[rowMeans(exp.matrix !=0) > 0.1,]
-writeMM(exp.matrix, 'WT.mtx')
-writeLines(rownames(exp.matrix), 'genesWT.txt')
-writeLines(colnames(exp.matrix), 'barcodesWT.txt')
-
-WT <- readMM('WT.mtx')
-rownames(WT) <- readLines('genesWT.txt')
-colnames(WT) <- readLines('barcodesWT.txt')
-WT <- WT[rowMeans(WT != 0) > 0.05,]
-WT <- WT[!grepl('^Rp[[:digit:]]+|^Rpl|^Rps|^Mt-', rownames(WT), ignore.case = TRUE),]
-
-print("Running in silico KO")
-lesion_ZEB1_KO <- scTenifoldKnk(WT, qc = TRUE, qc_minLSize = 0, gKO = 'Zeb1', nCores = 10)
-
-print("Save in silico KO")
-save(lesion_ZEB1_KO, file = '../output/Robjects/02_cnv_lesion_zeb1KO.RData')
+# # Run ZEB1 KO - NOTE! Best do this on 128Gb RAM computer. Requires power.
+# print("Making matrix")
+# exp.matrix <- lesion_cells[["RNA"]]$counts
+# exp.matrix <- exp.matrix[rowMeans(exp.matrix !=0) > 0.1,]
+# writeMM(exp.matrix, 'WT.mtx')
+# writeLines(rownames(exp.matrix), 'genesWT.txt')
+# writeLines(colnames(exp.matrix), 'barcodesWT.txt')
+# 
+# WT <- readMM('WT.mtx')
+# rownames(WT) <- readLines('genesWT.txt')
+# colnames(WT) <- readLines('barcodesWT.txt')
+# WT <- WT[rowMeans(WT != 0) > 0.05,]
+# WT <- WT[!grepl('^Rp[[:digit:]]+|^Rpl|^Rps|^Mt-', rownames(WT), ignore.case = TRUE),]
+# 
+# print("Running in silico KO")
+# lesion_ZEB1_KO <- scTenifoldKnk(WT, qc = TRUE, qc_minLSize = 0, gKO = 'Zeb1', nCores = 10)
+# 
+# print("Save in silico KO")
+# save(lesion_ZEB1_KO, file = '../output/Robjects/02_cnv_lesion_zeb1KO.RData')
 ```
 
 ```{r}
@@ -963,7 +963,7 @@ avg_exp <- AverageExpression(
   group.by = "Cluster",
   assays = "RNA",
   return.seurat = TRUE,
-  slot = "data"  # or "data" if you prefer raw log-normalized
+  slot = "data"
 )
 
 # Extract expression matrix of scaled average counts.

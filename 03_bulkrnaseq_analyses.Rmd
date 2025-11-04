@@ -876,13 +876,6 @@ dev.off()
 ```
 
 ```{r}
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(patchwork)
-
-### 1. Build all_res as in your code ---------------------------
-
 GO   <- as.data.frame(simpleHUVECZEBego_padj@result)
 KEGG <- as.data.frame(ekeggZeb1DE)
 HALL <- as.data.frame(deg_hallmarks)
@@ -900,8 +893,6 @@ KEGG <- KEGG %>%
   select(-category, -subcategory)
 
 all_res <- bind_rows(GO, KEGG, HALL)
-
-### 2. Term sets (from your existing code) ---------------------
 
 inflam_terms <- c(
   "HALLMARK_INTERFERON_GAMMA_RESPONSE",
@@ -966,8 +957,6 @@ angio_terms <- c(
   "HALLMARK_APICAL_JUNCTION"
 )
 
-### 3. Helper to prep the data (adapted from your first block) ----
-
 prep_plot_df <- function(all_res, selected_terms) {
   all_res %>%
     filter(Description %in% selected_terms) %>%
@@ -985,8 +974,6 @@ prep_plot_df <- function(all_res, selected_terms) {
 df_inflam <- prep_plot_df(all_res, inflam_terms)
 df_angio  <- prep_plot_df(all_res, angio_terms)
 
-### 4. Shared scales (x, colour, size) ----------------------------
-
 # Shared x-range
 x_max <- max(c(df_inflam$GeneRatioNumeric, df_angio$GeneRatioNumeric), na.rm = TRUE)
 
@@ -1000,8 +987,6 @@ all_counts  <- c(df_inflam$Count, df_angio$Count)
 size_limits <- c(min(all_counts, na.rm = TRUE), max(all_counts, na.rm = TRUE))
 size_breaks <- pretty(all_counts, n = 5)
 size_range  <- c(2, 8)
-
-### 5. Function to make one dotplot panel -------------------------
 
 make_dotplot <- function(df, panel_title) {
   ggplot(df, aes(x = GeneRatioNumeric, y = Description, size = Count, color = log10qvalue)) +
@@ -1037,8 +1022,6 @@ make_dotplot <- function(df, panel_title) {
       legend.text       = element_text(size = 9)
     )
 }
-
-### 6. Build and combine the plots -------------------------------
 
 p_inflam <- make_dotplot(df_inflam, "Inflammation")
 p_angio  <- make_dotplot(df_angio,  "Angiogenesis")
