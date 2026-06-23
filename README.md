@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1081861876.svg)](https://doi.org/10.5281/zenodo.20812767)
+
 # ZEB1_CNV
 
 Analysis code accompanying the manuscript:
